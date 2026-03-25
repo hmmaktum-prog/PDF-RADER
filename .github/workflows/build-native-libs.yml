@@ -135,8 +135,8 @@ jobs:
           NDK="$ANDROID_NDK_ROOT"
           TOOLCHAIN="$NDK/build/cmake/android.toolchain.cmake"
           SYSROOT="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
-          SRC=".native_src"
-          THIRD="mobile/native/third_party"
+          SRC="$(pwd)/.native_src"
+          THIRD="$(pwd)/mobile/native/third_party"
 
           for ABI in arm64-v8a x86_64; do
             echo "━━ QPDF: $ABI ━━"
