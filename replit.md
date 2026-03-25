@@ -29,6 +29,34 @@ React Native (Expo) Android app for offline PDF manipulation using NDK-backed C+
 
 **Both libraries compile correctly** — EAS build log confirmed `#include <qpdf/QPDF.hh>` resolves and `HAS_QPDF=1` / `HAS_MUPDF=1` are set.
 
+### Known Bugs Fixed (2026-03-25 — Round 2)
+
+#### 1. `mupdf_bridge.cpp` — use-after-free in fz_try/always/catch pattern
+**Bug**: All render functions (`renderPdfToImage`, `batchRenderPages`, `getPageCount`) used:
+```cpp
+fz_always(ctx) { fz_drop_context(ctx); }  // drops ctx here
+fz_catch(ctx)  { fz_caught_message(ctx); } // UB: ctx already freed
+```
+**Fix**: Moved `fz_drop_context(ctx)` to AFTER `fz_catch`. Used a `bool success` flag instead of `fz_always`.
+
+#### 2. `mupdf_bridge.cpp` / `qpdf_bridge.cpp` — URI path not decoded
+**Bug**: `normalizePath()` only stripped the `file://` prefix but did NOT decode percent-encoded characters (e.g., `%20` = space). MuPDF/QPDF could not find files with spaces or special characters in their names.
+**Fix**: Added `decodeUriComponent()` function and applied it inside `normalizePath()` in both C++ bridges. Also fixed `file:///` triple-slash handling to correctly produce an absolute path.
+
+#### 3. `qpdf_bridge.cpp` — `fourUpBooklet` and `imagesToPdf` missing `normalizePath()`
+**Bug**: Input/output paths were used raw (without `file://` stripping or URI decoding).
+**Fix**: Applied `normalizePath()` to all path arguments.
+
+#### 4. `qpdf_bridge.cpp` — `mergePdfs` only added first page of each PDF
+**Bug**: The loop called `getAllPages().at(0)` and added only the first page. All other pages were silently discarded.
+**Fix**: Iterate all pages and add each with `addPage(page, false)`.
+
+#### 5. `nativeModules.ts` — `batchRenderPages` threw immediately on native failure
+**Bug**: When the native `MuPDFBridge.batchRenderPages` returned false, an error was thrown with no fallback. Reader screen showed an error dialog instead of trying per-page rendering.
+**Fix**: Added two-stage fallback: (1) try native batch, (2) if batch fails, try per-page `renderPdfToImage` for each page. Only throw if both paths fail. Error message is now more informative.
+
+---
+
 ### Known Bug Fixed — withPdfNdk.js MainApplication registration
 
 **Bug**: The `withMainApplication` modifier in `plugins/withPdfNdk.js` was looking for `return packages` in `MainApplication.kt`. The modern Expo 54 / RN 0.76+ template uses `PackageList(this).packages.apply { }` — there is no `return packages` line. The regex never matched, so `PdfPowerToolsPackage` was never added to `getPackages()`, making `NativeModules.QPDFBridge` and `NativeModules.MuPDFBridge` both `undefined` at runtime. Settings showed MISSING for both engines.

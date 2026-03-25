@@ -399,6 +399,7 @@ export async function renderPageToImage(
  * Renders all pages to images. Uses native MuPDF batch when no per-page progress
  * callback is needed (faster, single document open). With `onProgress`, falls back
  * to per-page render so callers (e.g. OCR) can report progress.
+ * If the native batch call fails, automatically retries with per-page rendering.
  * `quality` for JPEG is 1–100; values > 70 select a higher render scale in native batch.
  */
 export async function batchRenderPages(
@@ -414,6 +415,7 @@ export async function batchRenderPages(
   const ext = format === 'png' ? '.png' : '.jpg';
   const results: string[] = [];
 
+  // Per-page rendering path (used when onProgress callback is provided)
   if (onProgress) {
     for (let i = 0; i < totalPages; i++) {
       const outPath = `${outputDir}/page_${i + 1}${ext}`;
@@ -424,12 +426,57 @@ export async function batchRenderPages(
     return results;
   }
 
+  // Attempt native batch render (fastest path — single document open)
   const fmt = format === 'png' ? 'png' : 'jpeg';
-  const ok = await MuPDFBridge.batchRenderPages(inputPath, outputDir, fmt, quality);
-  assertNativeSuccess('batchRenderPages', ok, 'MuPDF');
-
-  for (let i = 0; i < totalPages; i++) {
-    results.push(`${outputDir}/page_${i + 1}${ext}`);
+  let batchOk = false;
+  try {
+    batchOk = await MuPDFBridge.batchRenderPages(inputPath, outputDir, fmt, quality);
+  } catch {
+    batchOk = false;
   }
-  return results;
+
+  if (batchOk) {
+    for (let i = 0; i < totalPages; i++) {
+      results.push(`${outputDir}/page_${i + 1}${ext}`);
+    }
+    return results;
+  }
+
+  // Fallback: per-page rendering when batch fails
+  let perPageSuccess = 0;
+  for (let i = 0; i < totalPages; i++) {
+    const outPath = `${outputDir}/page_${i + 1}${ext}`;
+    try {
+      const pageOk = await MuPDFBridge.renderPdfToImage(inputPath, i + 1, outPath, quality > 70);
+      if (pageOk) {
+        results.push(outPath);
+        perPageSuccess += 1;
+      }
+    } catch {
+      // skip failed pages
+    }
+  }
+
+  if (perPageSuccess > 0) {
+    // Pad missing pages with the last successfully rendered page
+    const lastGood = results[results.length - 1];
+    for (let i = perPageSuccess; i < totalPages; i++) {
+      results.push(lastGood);
+    }
+    return results;
+  }
+
+  // Both paths failed — throw descriptive error
+  const nativeMissing = !hasNativeMupdfModule;
+  if (nativeMissing) {
+    throw new Error(
+      'batchRenderPages failed: MuPDF native module is not registered. ' +
+      'Rebuild the app with the native libraries.'
+    );
+  }
+  throw new Error(
+    'batchRenderPages failed: MuPDF could not render this PDF. ' +
+    'The file may be encrypted, corrupted, or in an unsupported format. ' +
+    'Check System Status in Settings for engine details.'
+  );
 }

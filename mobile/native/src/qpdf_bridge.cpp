@@ -27,12 +27,43 @@ static std::string jstringToStd(JNIEnv* env, jstring value) {
     return out;
 }
 
-static std::string normalizePath(const std::string& rawPath) {
-    const std::string prefix = "file://";
-    if (rawPath.rfind(prefix, 0) == 0) {
-        return rawPath.substr(prefix.size());
+// Decode percent-encoded URI components (e.g. %20 → space)
+static std::string decodeUriComponent(const std::string& s) {
+    std::string out;
+    out.reserve(s.size());
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (s[i] == '%' && i + 2 < s.size()) {
+            const char hi = s[i + 1];
+            const char lo = s[i + 2];
+            const bool hiHex = (hi >= '0' && hi <= '9') || (hi >= 'A' && hi <= 'F') || (hi >= 'a' && hi <= 'f');
+            const bool loHex = (lo >= '0' && lo <= '9') || (lo >= 'A' && lo <= 'F') || (lo >= 'a' && lo <= 'f');
+            if (hiHex && loHex) {
+                auto hexVal = [](char c) -> int {
+                    if (c >= '0' && c <= '9') return c - '0';
+                    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                    return c - 'a' + 10;
+                };
+                out += static_cast<char>((hexVal(hi) << 4) | hexVal(lo));
+                i += 2;
+                continue;
+            }
+        }
+        out += s[i];
     }
-    return rawPath;
+    return out;
+}
+
+// Strip file:// or file:/// prefix and decode percent-encoding
+static std::string normalizePath(const std::string& rawPath) {
+    std::string path = rawPath;
+    const std::string prefix3 = "file:///";
+    const std::string prefix2 = "file://";
+    if (path.rfind(prefix3, 0) == 0) {
+        path = "/" + path.substr(prefix3.size());
+    } else if (path.rfind(prefix2, 0) == 0) {
+        path = path.substr(prefix2.size());
+    }
+    return decodeUriComponent(path);
 }
 
 static bool ensureParentDirectory(const std::string& filePath) {
@@ -125,15 +156,10 @@ Java_com_pdfpowertools_native_QPDFBridge_mergePdfs(
         for (const auto& inPath : inputs) {
             QPDF in;
             in.processFile(inPath.c_str());
-            QPDFPageDocumentHelper(merged).addPage(
-                QPDFPageDocumentHelper(in).getAllPages().at(0), false
-            ); // Simplified: adding first page of each for now, or all pages:
-            /*
             std::vector<QPDFPageObjectHelper> pages = QPDFPageDocumentHelper(in).getAllPages();
             for (auto& page : pages) {
                 QPDFPageDocumentHelper(merged).addPage(page, false);
             }
-            */
         }
         QPDFWriter w(merged, out.c_str());
         w.setStaticID(true); // For reproducibility
@@ -453,7 +479,7 @@ Java_com_pdfpowertools_native_QPDFBridge_fourUpBooklet(
         jstring orientation) {
     LOGI("Executing QPDF 4-Up Booklet");
     (void) orientation;
-    const std::string in = jstringToStd(env, inputPath);
+    const std::string in = normalizePath(jstringToStd(env, inputPath));
     const std::string out = normalizePath(jstringToStd(env, outputPath));
     return copyFileSafe(in, out) ? JNI_TRUE : JNI_FALSE;
 }
@@ -475,6 +501,6 @@ Java_com_pdfpowertools_native_QPDFBridge_imagesToPdf(
     (void) pageSize;
     (void) orientation;
     (void) marginPts;
-    const std::string out = jstringToStd(env, outputPath);
+    const std::string out = normalizePath(jstringToStd(env, outputPath));
     return writeMinimalPdf(out) ? JNI_TRUE : JNI_FALSE;
 }
