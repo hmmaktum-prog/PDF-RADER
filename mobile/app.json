@@ -56,7 +56,8 @@
             "targetSdkVersion": 34,
             "minSdkVersion": 24,
             "buildToolsVersion": "35.0.0",
-            "kotlinVersion": "2.1.0"
+            "kotlinVersion": "2.1.0",
+            "extraProguardRules": "-keepclasseswithmembernames class * { native <methods>; }\n-keep class com.pdfpowertools.native.** { *; }"
           }
         }
       ],

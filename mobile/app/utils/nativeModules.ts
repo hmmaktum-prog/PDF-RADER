@@ -53,11 +53,18 @@ function assertNativeSuccess(operation: string, ok: boolean, engine: 'QPDF' | 'M
     const nativeMissing = engine === 'QPDF' ? !hasNativeQpdfModule : !hasNativeMupdfModule;
     if (nativeMissing) {
       throw new Error(
-        `${operation} failed: Native module is missing (${engine} NativeModules.* undefined). ` +
-          `Check Android native module registration.`
+        `${operation} failed: ${engine} native module is not registered. ` +
+          `Please rebuild the app with the necessary native libraries.`
       );
     }
-    throw new Error(`${operation} failed: ${engine} engine is either not linked or encountered a fatal error. Please check System Status in Settings.`);
+    
+    // If we're here, the module is present but the engine returned 'false'.
+    // This usually means a fatal error in the C++ layer (corrupt file, OOM, etc.)
+    throw new Error(
+      `${operation} failed: ${engine} engine encountered a fatal error during processing. ` +
+      `The file may be corrupted, encrypted with an unsupported scheme, or too large for available memory. ` +
+      `Please check System Status in Settings.`
+    );
   }
 }
 
@@ -360,9 +367,14 @@ export async function batchRenderPages(
       if (pageOk) {
         results.push(outPath);
         perPageSuccess += 1;
+      } else if (i === 0) {
+        // If the very first page fails, the PDF is likely corrupt or completely unsupported. 
+        // Abort the fallback to avoid OOM or wasting time looping through 100s of pages.
+        break;
       }
     } catch {
-      // skip failed pages
+      // If native bridge throws an error on the first page, abort.
+      if (i === 0) break;
     }
   }
 
@@ -380,12 +392,15 @@ export async function batchRenderPages(
   if (nativeMissing) {
     throw new Error(
       'batchRenderPages failed: MuPDF native module is not registered. ' +
-      'Rebuild the app with the native libraries.'
+      'Please rebuild the app with the native libraries.'
     );
   }
+
+  // If we reach here, both the native batch call AND the per-page fallback failed.
   throw new Error(
     'batchRenderPages failed: MuPDF could not render this PDF. ' +
     'The file may be encrypted, corrupted, or in an unsupported format. ' +
-    'Check System Status in Settings for engine details.'
+    'Individual page rendering also failed for every page. ' +
+    'Check System Status in Settings for engine linking details.'
   );
 }

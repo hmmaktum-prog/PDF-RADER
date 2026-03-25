@@ -45,8 +45,9 @@ export default function MergeScreen() {
     if (pdfs.length) {
       setFiles((prev) => {
         const existingPaths = new Set(prev.map((f) => f.path));
+        const existingKeys = new Set(prev.map((f) => `${f.name}_${f.size}`));
         const newFiles = pdfs
-          .filter((f) => !existingPaths.has(f.path))
+          .filter((f) => !existingPaths.has(f.path) && !existingKeys.has(`${f.name}_${f.size}`))
           .map((f, i) => ({
             name: f.name,
             path: f.path,
@@ -71,8 +72,9 @@ export default function MergeScreen() {
       if (picked.length === 0) return;
       setFiles(prev => {
         const existingPaths = new Set(prev.map(f => f.path));
+        const existingKeys = new Set(prev.map(f => `${f.name}_${f.size}`));
         const newFiles = picked
-          .filter(f => !existingPaths.has(f.path))
+          .filter(f => !existingPaths.has(f.path) && !existingKeys.has(`${f.name}_${f.size}`))
           .map((f, i) => ({ ...f, id: Date.now().toString() + i }));
         return [...prev, ...newFiles];
       });

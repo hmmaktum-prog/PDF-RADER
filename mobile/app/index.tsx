@@ -16,6 +16,7 @@ import { useAppTheme } from './context/ThemeContext';
 import { useContinueTool } from './context/ContinueContext';
 import * as Haptics from 'expo-haptics';
 import { pickMultiplePdfs, pickImages, PickedFile } from './utils/filePicker';
+import { Alert } from 'react-native';
 
 const QUICK_TOOLS = [
   { id: 'merge',        name: 'Merge',      icon: '🔗', route: '/screens/merge',        grad: ['#007AFF', '#0055CC'] as const },
@@ -74,9 +75,13 @@ export default function HomeScreen() {
 
   const handlePickPdf = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const files = await pickMultiplePdfs();
-    if (files.length > 0) {
-      router.push({ pathname: '/screens/reader', params: { uri: files[0].path } } as any);
+    try {
+      const files = await pickMultiplePdfs();
+      if (files.length > 0) {
+        router.push({ pathname: '/screens/reader', params: { uri: files[0].path } } as any);
+      }
+    } catch (e: any) {
+      Alert.alert('File Error', e.message || 'An error occurred while picking PDFs.');
     }
   };
 
@@ -88,8 +93,9 @@ export default function HomeScreen() {
         setQueuedPickedFiles(files);
         router.push('/screens/image-reader' as any);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn('Gallery error', e);
+      Alert.alert('Gallery Error', e.message || 'An error occurred while picking images.');
     }
   };
 

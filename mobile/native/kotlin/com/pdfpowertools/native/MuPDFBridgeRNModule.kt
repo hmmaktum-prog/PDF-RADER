@@ -27,6 +27,19 @@ class MuPDFBridgeRNModule(reactContext: ReactApplicationContext) : ReactContextB
   }
 
   @ReactMethod
+  fun getPageDimensions(inputPath: String, pageNumber: Int, promise: Promise) {
+    try {
+      val dims = MuPDFBridge.getPageDimensions(inputPath, pageNumber)
+      val result = com.facebook.react.bridge.Arguments.createArray()
+      result.pushDouble(dims[0].toDouble())
+      result.pushDouble(dims[1].toDouble())
+      promise.resolve(result)
+    } catch (t: Throwable) {
+      promise.reject("MUPDF_PAGEDIMENSIONS_FAILED", t)
+    }
+  }
+
+  @ReactMethod
   fun renderPdfToImage(inputPath: String, pageNumber: Int, outputPath: String, highRes: Boolean, promise: Promise) {
     try {
       promise.resolve(MuPDFBridge.renderPdfToImage(inputPath, pageNumber, outputPath, highRes))

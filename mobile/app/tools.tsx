@@ -97,10 +97,18 @@ export default function ToolsScreen() {
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
   }, []);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [query]);
 
   const bg     = isDark ? '#0a0e1a' : '#f0f2f8';
   const cardBg = isDark ? '#141824' : '#ffffff';
@@ -111,8 +119,8 @@ export default function ToolsScreen() {
   const accent = '#007AFF';
 
   const filteredSections = useMemo(() => {
-    if (!query.trim()) return TOOL_SECTIONS;
-    const q = query.toLowerCase();
+    if (!debouncedQuery.trim()) return TOOL_SECTIONS;
+    const q = debouncedQuery.toLowerCase();
     return TOOL_SECTIONS
       .map(section => ({
         ...section,
@@ -123,14 +131,14 @@ export default function ToolsScreen() {
         ),
       }))
       .filter(section => section.data.length > 0);
-  }, [query]);
+  }, [debouncedQuery]);
 
   const flatResults: ToolItem[] = useMemo(() => {
-    if (!query.trim()) return [];
+    if (!debouncedQuery.trim()) return [];
     return filteredSections.flatMap(s => s.data);
-  }, [filteredSections, query]);
+  }, [filteredSections, debouncedQuery]);
 
-  const isSearching = query.trim().length > 0;
+  const isSearching = debouncedQuery.trim().length > 0;
 
   const renderCard = (item: ToolItem) => (
     <TouchableOpacity

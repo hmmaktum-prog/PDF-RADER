@@ -44,6 +44,9 @@ static std::string decodeUriComponent(const std::string& s) {
                 i += 2;
                 continue;
             }
+        } else if (s[i] == '+') {
+            out += ' ';
+            continue;
         }
         out += s[i];
     }
@@ -386,7 +389,43 @@ Java_com_pdfpowertools_native_MuPDFBridge_grayscalePdf(
     const std::string out = normalizePath(jstringToStd(env, outputPath));
 
 #ifdef HAS_MUPDF
-    LOGI("MuPDF Grayscale: real engine active");
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) return JNI_FALSE;
+    bool success = false;
+    fz_try(ctx) {
+        fz_register_document_handlers(ctx);
+        fz_document* doc = fz_open_document(ctx, in.c_str());
+        fz_document_writer* w = fz_new_pdf_writer(ctx, out.c_str(), nullptr);
+        int pages = fz_count_pages(ctx, doc);
+        for (int i = 0; i < pages; ++i) {
+            fz_page* page = fz_load_page(ctx, doc, i);
+            fz_rect rect = fz_bound_page(ctx, page);
+            
+            fz_matrix ctm = fz_scale(2.0f, 2.0f); // 144 DPI
+            fz_pixmap* pix = fz_new_pixmap_from_page(ctx, page, ctm, fz_device_gray(ctx), 0);
+            fz_image* img = fz_new_image_from_pixmap(ctx, pix, nullptr);
+            fz_drop_pixmap(ctx, pix);
+            
+            fz_device* dev = fz_begin_page(ctx, w, rect);
+            fz_matrix img_ctm = fz_scale(rect.x1 - rect.x0, rect.y1 - rect.y0);
+            img_ctm.e += rect.x0;
+            img_ctm.f += rect.y0;
+            fz_fill_image(ctx, dev, img, img_ctm, 1.0f, fz_default_color_params);
+            
+            fz_end_page(ctx, w);
+            fz_drop_image(ctx, img);
+            fz_drop_page(ctx, page);
+        }
+        fz_close_document_writer(ctx, w);
+        fz_drop_document_writer(ctx, w);
+        fz_drop_document(ctx, doc);
+        success = true;
+    }
+    fz_catch(ctx) {
+        LOGE("grayscalePdf error: %s", fz_caught_message(ctx));
+    }
+    fz_drop_context(ctx);
+    if (success) return JNI_TRUE;
 #endif
 
     return copyFileSafe(in, out) ? JNI_TRUE : JNI_FALSE;
@@ -403,6 +442,65 @@ Java_com_pdfpowertools_native_MuPDFBridge_whiteningPdf(
     LOGI("whiteningPdf (strength=%d)", strength);
     const std::string in = normalizePath(jstringToStd(env, inputPath));
     const std::string out = normalizePath(jstringToStd(env, outputPath));
+
+#ifdef HAS_MUPDF
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) return JNI_FALSE;
+    bool success = false;
+    fz_try(ctx) {
+        fz_register_document_handlers(ctx);
+        fz_document* doc = fz_open_document(ctx, in.c_str());
+        fz_document_writer* w = fz_new_pdf_writer(ctx, out.c_str(), nullptr);
+        int pages = fz_count_pages(ctx, doc);
+        for (int i = 0; i < pages; ++i) {
+            fz_page* page = fz_load_page(ctx, doc, i);
+            fz_rect rect = fz_bound_page(ctx, page);
+            
+            fz_matrix ctm = fz_scale(2.0f, 2.0f);
+            fz_pixmap* pix = fz_new_pixmap_from_page(ctx, page, ctm, fz_device_rgb(ctx), 0);
+            
+            unsigned char* samples = fz_pixmap_samples(ctx, pix);
+            int width = fz_pixmap_width(ctx, pix);
+            int height = fz_pixmap_height(ctx, pix);
+            int n = fz_pixmap_components(ctx, pix);
+            int len = width * height * n;
+            
+            int threshold = 255 - (strength * 2);
+            if (threshold < 0) threshold = 0;
+            
+            for (int j = 0; j < len; j += n) {
+                if (samples[j] > threshold && samples[j+1] > threshold && samples[j+2] > threshold) {
+                    samples[j] = 255;
+                    samples[j+1] = 255;
+                    samples[j+2] = 255;
+                }
+            }
+            
+            fz_image* img = fz_new_image_from_pixmap(ctx, pix, nullptr);
+            fz_drop_pixmap(ctx, pix);
+            
+            fz_device* dev = fz_begin_page(ctx, w, rect);
+            fz_matrix img_ctm = fz_scale(rect.x1 - rect.x0, rect.y1 - rect.y0);
+            img_ctm.e += rect.x0;
+            img_ctm.f += rect.y0;
+            fz_fill_image(ctx, dev, img, img_ctm, 1.0f, fz_default_color_params);
+            
+            fz_end_page(ctx, w);
+            fz_drop_image(ctx, img);
+            fz_drop_page(ctx, page);
+        }
+        fz_close_document_writer(ctx, w);
+        fz_drop_document_writer(ctx, w);
+        fz_drop_document(ctx, doc);
+        success = true;
+    }
+    fz_catch(ctx) {
+        LOGE("whiteningPdf error: %s", fz_caught_message(ctx));
+    }
+    fz_drop_context(ctx);
+    if (success) return JNI_TRUE;
+#endif
+
     return copyFileSafe(in, out) ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -417,6 +515,65 @@ Java_com_pdfpowertools_native_MuPDFBridge_enhanceContrastPdf(
     LOGI("enhanceContrastPdf (level=%d)", level);
     const std::string in = normalizePath(jstringToStd(env, inputPath));
     const std::string out = normalizePath(jstringToStd(env, outputPath));
+
+#ifdef HAS_MUPDF
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) return JNI_FALSE;
+    bool success = false;
+    fz_try(ctx) {
+        fz_register_document_handlers(ctx);
+        fz_document* doc = fz_open_document(ctx, in.c_str());
+        fz_document_writer* w = fz_new_pdf_writer(ctx, out.c_str(), nullptr);
+        int pages = fz_count_pages(ctx, doc);
+        for (int i = 0; i < pages; ++i) {
+            fz_page* page = fz_load_page(ctx, doc, i);
+            fz_rect rect = fz_bound_page(ctx, page);
+            
+            fz_matrix ctm = fz_scale(2.0f, 2.0f);
+            fz_pixmap* pix = fz_new_pixmap_from_page(ctx, page, ctm, fz_device_rgb(ctx), 0);
+            
+            unsigned char* samples = fz_pixmap_samples(ctx, pix);
+            int width = fz_pixmap_width(ctx, pix);
+            int height = fz_pixmap_height(ctx, pix);
+            int n = fz_pixmap_components(ctx, pix);
+            int len = width * height * n;
+            
+            float contrast = level; 
+            float factor = (259.0f * (contrast + 255.0f)) / (255.0f * (259.0f - contrast));
+            
+            for (int j = 0; j < len; j += n) {
+                for (int c = 0; c < 3; ++c) {
+                    float val = samples[j+c];
+                    val = factor * (val - 128.0f) + 128.0f;
+                    samples[j+c] = (unsigned char)(val < 0 ? 0 : (val > 255 ? 255 : val));
+                }
+            }
+            
+            fz_image* img = fz_new_image_from_pixmap(ctx, pix, nullptr);
+            fz_drop_pixmap(ctx, pix);
+            
+            fz_device* dev = fz_begin_page(ctx, w, rect);
+            fz_matrix img_ctm = fz_scale(rect.x1 - rect.x0, rect.y1 - rect.y0);
+            img_ctm.e += rect.x0;
+            img_ctm.f += rect.y0;
+            fz_fill_image(ctx, dev, img, img_ctm, 1.0f, fz_default_color_params);
+            
+            fz_end_page(ctx, w);
+            fz_drop_image(ctx, img);
+            fz_drop_page(ctx, page);
+        }
+        fz_close_document_writer(ctx, w);
+        fz_drop_document_writer(ctx, w);
+        fz_drop_document(ctx, doc);
+        success = true;
+    }
+    fz_catch(ctx) {
+        LOGE("enhanceContrastPdf error: %s", fz_caught_message(ctx));
+    }
+    fz_drop_context(ctx);
+    if (success) return JNI_TRUE;
+#endif
+
     return copyFileSafe(in, out) ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -432,7 +589,56 @@ Java_com_pdfpowertools_native_MuPDFBridge_invertColorsPdf(
     const std::string out = normalizePath(jstringToStd(env, outputPath));
 
 #ifdef HAS_MUPDF
-    LOGI("MuPDF Invert: real engine active");
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) return JNI_FALSE;
+    bool success = false;
+    fz_try(ctx) {
+        fz_register_document_handlers(ctx);
+        fz_document* doc = fz_open_document(ctx, in.c_str());
+        fz_document_writer* w = fz_new_pdf_writer(ctx, out.c_str(), nullptr);
+        int pages = fz_count_pages(ctx, doc);
+        for (int i = 0; i < pages; ++i) {
+            fz_page* page = fz_load_page(ctx, doc, i);
+            fz_rect rect = fz_bound_page(ctx, page);
+            
+            fz_matrix ctm = fz_scale(2.0f, 2.0f);
+            fz_pixmap* pix = fz_new_pixmap_from_page(ctx, page, ctm, fz_device_rgb(ctx), 0);
+            
+            unsigned char* samples = fz_pixmap_samples(ctx, pix);
+            int width = fz_pixmap_width(ctx, pix);
+            int height = fz_pixmap_height(ctx, pix);
+            int n = fz_pixmap_components(ctx, pix);
+            int len = width * height * n;
+            
+            for (int j = 0; j < len; j += n) {
+                samples[j]   = 255 - samples[j];
+                samples[j+1] = 255 - samples[j+1];
+                samples[j+2] = 255 - samples[j+2];
+            }
+            
+            fz_image* img = fz_new_image_from_pixmap(ctx, pix, nullptr);
+            fz_drop_pixmap(ctx, pix);
+            
+            fz_device* dev = fz_begin_page(ctx, w, rect);
+            fz_matrix img_ctm = fz_scale(rect.x1 - rect.x0, rect.y1 - rect.y0);
+            img_ctm.e += rect.x0;
+            img_ctm.f += rect.y0;
+            fz_fill_image(ctx, dev, img, img_ctm, 1.0f, fz_default_color_params);
+            
+            fz_end_page(ctx, w);
+            fz_drop_image(ctx, img);
+            fz_drop_page(ctx, page);
+        }
+        fz_close_document_writer(ctx, w);
+        fz_drop_document_writer(ctx, w);
+        fz_drop_document(ctx, doc);
+        success = true;
+    }
+    fz_catch(ctx) {
+        LOGE("invertColorsPdf error: %s", fz_caught_message(ctx));
+    }
+    fz_drop_context(ctx);
+    if (success) return JNI_TRUE;
 #endif
 
     return copyFileSafe(in, out) ? JNI_TRUE : JNI_FALSE;
@@ -448,5 +654,61 @@ Java_com_pdfpowertools_native_MuPDFBridge_geminiAiWhitening(
     LOGI("geminiAiWhitening");
     const std::string in = normalizePath(jstringToStd(env, inputPath));
     const std::string out = normalizePath(jstringToStd(env, outputPath));
+
+#ifdef HAS_MUPDF
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) return JNI_FALSE;
+    bool success = false;
+    fz_try(ctx) {
+        fz_register_document_handlers(ctx);
+        fz_document* doc = fz_open_document(ctx, in.c_str());
+        fz_document_writer* w = fz_new_pdf_writer(ctx, out.c_str(), nullptr);
+        int pages = fz_count_pages(ctx, doc);
+        for (int i = 0; i < pages; ++i) {
+            fz_page* page = fz_load_page(ctx, doc, i);
+            fz_rect rect = fz_bound_page(ctx, page);
+            
+            fz_matrix ctm = fz_scale(2.0f, 2.0f);
+            fz_pixmap* pix = fz_new_pixmap_from_page(ctx, page, ctm, fz_device_gray(ctx), 0);
+            
+            unsigned char* samples = fz_pixmap_samples(ctx, pix);
+            int width = fz_pixmap_width(ctx, pix);
+            int height = fz_pixmap_height(ctx, pix);
+            int n = fz_pixmap_components(ctx, pix);
+            int len = width * height * n;
+            
+            for (int j = 0; j < len; j += n) {
+                int val = samples[j];
+                if (val > 140) val = 255;
+                else if (val < 100) val = 0;
+                else val = (val - 100) * 255 / 40;
+                samples[j] = val;
+            }
+            
+            fz_image* img = fz_new_image_from_pixmap(ctx, pix, nullptr);
+            fz_drop_pixmap(ctx, pix);
+            
+            fz_device* dev = fz_begin_page(ctx, w, rect);
+            fz_matrix img_ctm = fz_scale(rect.x1 - rect.x0, rect.y1 - rect.y0);
+            img_ctm.e += rect.x0;
+            img_ctm.f += rect.y0;
+            fz_fill_image(ctx, dev, img, img_ctm, 1.0f, fz_default_color_params);
+            
+            fz_end_page(ctx, w);
+            fz_drop_image(ctx, img);
+            fz_drop_page(ctx, page);
+        }
+        fz_close_document_writer(ctx, w);
+        fz_drop_document_writer(ctx, w);
+        fz_drop_document(ctx, doc);
+        success = true;
+    }
+    fz_catch(ctx) {
+        LOGE("geminiAiWhitening error: %s", fz_caught_message(ctx));
+    }
+    fz_drop_context(ctx);
+    if (success) return JNI_TRUE;
+#endif
+
     return copyFileSafe(in, out) ? JNI_TRUE : JNI_FALSE;
 }
