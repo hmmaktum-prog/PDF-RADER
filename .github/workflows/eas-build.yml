@@ -1,0 +1,256 @@
+name: EAS Build (Android)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# প্রয়োজনীয় GitHub Secrets (Settings → Secrets → Actions):
+#   GH_PAT  — GitHub Personal Access Token (repo write permission)
+#   EXPO_TOKEN                    — expo.dev → Account Settings → Access Tokens
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'mobile/native/third_party/**'
+      - '**.md'
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'EAS Build profile (preview = APK)'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - production
+          - development
+      force_rebuild_libs:
+        description: 'Force rebuild .so files (even if already exist)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Job 1 — Native Library Build: libqpdf.so + libmupdf.so
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  build-native-libs:
+    name: "Build Native .so (MuPDF + QPDF)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      # ── .so আগে থেকে আছে কিনা দেখো ────────────────────────────────────────
+      # Native build এখন "Build & Save Native Libraries" workflow করে।
+      # উভয় .so থাকলে এই job সম্পূর্ণ skip হবে।
+      - name: Check if .so files already exist
+        id: check-so
+        run: |
+          ARM64_QPDF="mobile/native/third_party/qpdf/libs/arm64-v8a/libqpdf.so"
+          ARM64_MUPDF="mobile/native/third_party/mupdf/libs/arm64-v8a/libmupdf.so"
+          X86_QPDF="mobile/native/third_party/qpdf/libs/x86_64/libqpdf.so"
+          X86_MUPDF="mobile/native/third_party/mupdf/libs/x86_64/libmupdf.so"
+          echo "── Repository-তে বিদ্যমান .so files ──"
+          find mobile/native/third_party -name '*.so' 2>/dev/null || echo "(কোনো .so নেই)"
+          if [[ -f "$ARM64_QPDF" && -f "$ARM64_MUPDF" && -f "$X86_QPDF" && -f "$X86_MUPDF" ]]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✓ QPDF + MuPDF উভয় ABI-তে আছে — native build চিরতরে skip।"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✗ কিছু .so missing — build করতে হবে।"
+            echo "→ 'Build & Save Native Libraries' workflow একবার চালান।"
+          fi
+
+      # ── Cache: Android NDK ──────────────────────────────────────────────────
+      - name: Cache Android NDK r25b
+        id: cache-ndk
+        if: steps.check-so.outputs.exists != 'true' || github.event.inputs.force_rebuild_libs == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.home }}/Android/Sdk/ndk/25.2.9519653
+          key: android-ndk-r25b-v2
+
+      # ── Cache: MuPDF source ─────────────────────────────────────────────────
+      - name: Cache MuPDF 1.27.2 source
+        if: steps.check-so.outputs.exists != 'true' || github.event.inputs.force_rebuild_libs == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .native_src/mupdf-1.27.2-source
+          key: mupdf-src-1.27.2-v1
+
+      # ── Cache: QPDF + libjpeg source ────────────────────────────────────────
+      - name: Cache QPDF + libjpeg-turbo source
+        if: steps.check-so.outputs.exists != 'true' || github.event.inputs.force_rebuild_libs == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            .native_src/qpdf
+            .native_src/libjpeg-turbo
+          key: qpdf-libjpeg-src-v2
+
+      # ── Build Tools Install ─────────────────────────────────────────────────
+      - name: Install Linux build tools
+        if: steps.check-so.outputs.exists != 'true' || github.event.inputs.force_rebuild_libs == 'true'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q \
+            cmake ninja-build build-essential \
+            pkg-config unzip git curl nasm
+
+      # ── NDK Download (cache miss হলে) ───────────────────────────────────────
+      - name: Download Android NDK r25b
+        if: |
+          (steps.check-so.outputs.exists != 'true' || github.event.inputs.force_rebuild_libs == 'true') &&
+          steps.cache-ndk.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/Android/Sdk/ndk
+          echo "NDK ডাউনলোড হচ্ছে (~1.5 GB) ..."
+          curl -L --progress-bar \
+            -o /tmp/ndk.zip \
+            "https://dl.google.com/android/repository/android-ndk-r25b-linux.zip"
+          unzip -q /tmp/ndk.zip -d ~/Android/Sdk/ndk
+          mv ~/Android/Sdk/ndk/android-ndk-r25b ~/Android/Sdk/ndk/25.2.9519653
+          rm -f /tmp/ndk.zip
+          echo "✓ NDK ready."
+
+      # ── Native Library Build ────────────────────────────────────────────────
+      - name: Build libqpdf.so + libmupdf.so
+        if: steps.check-so.outputs.exists != 'true' || github.event.inputs.force_rebuild_libs == 'true'
+        env:
+          ANDROID_NDK_ROOT: /home/runner/Android/Sdk/ndk/25.2.9519653
+        run: |
+          chmod +x scripts/build_native_libraries.sh
+          bash scripts/build_native_libraries.sh
+
+      # ── Result দেখাও ───────────────────────────────────────────────────────
+      - name: Show generated .so files
+        run: |
+          echo "=== তৈরি হওয়া .so files ==="
+          find mobile/native/third_party -name '*.so' 2>/dev/null \
+            | while read f; do ls -lh "$f"; done \
+            || echo "(কোনো .so file নেই)"
+
+      # ── .so files → GitHub-এ Push ────────────────────────────────────────────
+      - name: Commit and push .so files to GitHub
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # GH_PAT দিয়ে remote URL সেট করো (HTTPS authentication)
+          REPO_URL="https://x-access-token:${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git remote set-url origin "$REPO_URL"
+
+          git add mobile/native/third_party/ || true
+
+          if git diff --cached --quiet; then
+            echo "কোনো পরিবর্তন নেই — .so files ইতোমধ্যে up to date।"
+          else
+            git commit -m "chore: update prebuilt native .so libraries [skip ci]"
+            git push origin HEAD:main
+            echo "✓ .so files GitHub-এ push সম্পন্ন।"
+          fi
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Job 2 — EAS Cloud Build: Android APK
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  eas-build:
+    name: "EAS Build → Android APK"
+    needs: build-native-libs
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Checkout (latest commit — .so সহ) ───────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          ref: main
+
+      # ── Secret চেক ─────────────────────────────────────────────────────────
+      - name: Verify required secrets
+        run: |
+          MISSING=""
+          [[ -z "${{ secrets.EXPO_TOKEN }}" ]] && MISSING="$MISSING EXPO_TOKEN"
+          [[ -z "${{ secrets.GH_PAT }}" ]] && echo "⚠ GH_PAT not set — using GITHUB_TOKEN (may fail on protected branches)"
+          if [[ -n "$MISSING" ]]; then
+            echo "ERROR: নিচের secrets set করা নেই:$MISSING" >&2
+            echo "GitHub → Settings → Secrets and variables → Actions → New repository secret" >&2
+            exit 1
+          fi
+          echo "✓ Secrets confirmed."
+
+      # ── .so ফাইল আছে কিনা নিশ্চিত করো ────────────────────────────────────
+      - name: Verify .so files before EAS build
+        run: |
+          ARM64_QPDF="mobile/native/third_party/qpdf/libs/arm64-v8a/libqpdf.so"
+          echo "=== .so file status ==="
+          ls -lh mobile/native/third_party/qpdf/libs/arm64-v8a/  2>/dev/null || echo "QPDF: missing"
+          ls -lh mobile/native/third_party/mupdf/libs/arm64-v8a/ 2>/dev/null || echo "MuPDF: missing (optional)"
+          if [[ ! -f "$ARM64_QPDF" ]]; then
+            echo "ERROR: libqpdf.so পাওয়া যায়নি — EAS build বন্ধ।" >&2
+            exit 1
+          fi
+          echo "✓ .so check passed।"
+
+      # ── pnpm Setup ──────────────────────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      # ── Node.js Setup ───────────────────────────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      # ── Expo + EAS CLI ──────────────────────────────────────────────────────
+      - name: Setup Expo and EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      # ── Dependencies ────────────────────────────────────────────────────────
+      - name: Install Node dependencies
+        working-directory: mobile
+        run: pnpm install --frozen-lockfile
+
+      # ── Login নিশ্চিত করো ──────────────────────────────────────────────────
+      - name: Verify EAS login
+        working-directory: mobile
+        run: eas whoami
+
+      # ── EAS Cloud Build Submit ──────────────────────────────────────────────
+      - name: Submit EAS Build (Android APK)
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          PROFILE="${{ github.event.inputs.profile || 'preview' }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "EAS Build শুরু হচ্ছে"
+          echo "Profile : $PROFILE"
+          echo "Platform: android"
+          echo "APK URL : https://expo.dev/builds এ পাওয়া যাবে"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          eas build \
+            --platform android \
+            --profile "$PROFILE" \
+            --non-interactive
+          echo "✓ Build submit সম্পন্ন — expo.dev/builds এ status দেখুন।"

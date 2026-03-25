@@ -1,0 +1,40 @@
+{
+  "cli": {
+    "version": ">= 10.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      },
+      "env": {
+        "EAS_PACKAGE_MANAGER": "pnpm"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EAS_PACKAGE_MANAGER": "pnpm"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "NODE_ENV": "production",
+        "EAS_PACKAGE_MANAGER": "pnpm"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

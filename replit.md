@@ -1,0 +1,110 @@
+# PDF Power Tools — Mobile App
+
+React Native (Expo) Android app for offline PDF manipulation using NDK-backed C++ libraries.
+
+## Architecture
+
+- **Framework**: Expo 54 / React Native 0.81.5 (New Architecture / Bridgeless mode)
+- **Routing**: Expo Router (file-based)
+- **Workspace**: pnpm monorepo; app lives in `mobile/`
+- **Package Manager**: pnpm@10.26.1 (declared in both root and `mobile/package.json`)
+
+## Native Build (NDK)
+
+`mobile/native/` contains the C++ layer:
+
+| File | Purpose |
+|---|---|
+| `CMakeLists.txt` | Single CMake entry point for the Android native build |
+| `src/qpdf_bridge.cpp` | JNI bridge for QPDF (merge, split, rotate, …) — compiled with `HAS_QPDF=1` when `libqpdf.so` is present |
+| `src/mupdf_bridge.cpp` | JNI bridge for MuPDF (render, grayscale, contrast, …) — compiled with `HAS_MUPDF=1` when `libmupdf.so` is present |
+
+### Prebuilt Native Libraries Status
+
+| Library | arm64-v8a | x86_64 | Notes |
+|---|---|---|---|
+| `libqpdf.so` | ✅ present | ✅ present | QPDF v11.9.1 |
+| `libjpeg.so` | ✅ present | ✅ present | libjpeg-turbo (QPDF dependency) |
+| `libmupdf.so` | ✅ present | ✅ present | MuPDF — confirmed in build log |
+
+**Both libraries compile correctly** — EAS build log confirmed `#include <qpdf/QPDF.hh>` resolves and `HAS_QPDF=1` / `HAS_MUPDF=1` are set.
+
+### Known Bug Fixed — withPdfNdk.js MainApplication registration
+
+**Bug**: The `withMainApplication` modifier in `plugins/withPdfNdk.js` was looking for `return packages` in `MainApplication.kt`. The modern Expo 54 / RN 0.76+ template uses `PackageList(this).packages.apply { }` — there is no `return packages` line. The regex never matched, so `PdfPowerToolsPackage` was never added to `getPackages()`, making `NativeModules.QPDFBridge` and `NativeModules.MuPDFBridge` both `undefined` at runtime. Settings showed MISSING for both engines.
+
+**Fix** (applied 2026-03-25): Updated the modifier to handle three patterns:
+1. **Modern** — `PackageList(this).packages.apply { }` → inserts `add(PdfPowerToolsPackage())`
+2. **Intermediate** — `PackageList(this).packages` without apply → wraps with `.apply { add(...) }`
+3. **Old** — `return packages` → inserts `packages.add(...)` before it
+
+**Rebuild required**: Trigger a new EAS build for the fix to take effect.
+
+### CMake design (important)
+
+The project name in `CMakeLists.txt` is **`appmodules`**, which produces `libappmodules.so`.  
+React Native New Architecture **requires** `libappmodules.so` to exist — it contains the TurboModule registry (PlatformConstants and all core modules). Without it the app crashes immediately on startup.
+
+The CMakeLists.txt therefore:
+1. Sets `project(appmodules)`
+2. Includes `ReactNative-application.cmake` from `node_modules/react-native/ReactAndroid/cmake-utils/` — this builds `libappmodules.so` with autolinking and codegen wired in
+3. Separately builds `libpdfpowertools_native.so` from `src/*.cpp` — loaded by the Java Bridge classes via `System.loadLibrary("pdfpowertools_native")`
+4. **Conditionally** links QPDF/MuPDF if their prebuilt `.so` and include headers are found in `third_party/`. Sets `HAS_QPDF=1` and `HAS_MUPDF=1` compilation flags.
+
+### Expo config plugin
+
+`mobile/plugins/withPdfNdk.js` injects into `android/app/build.gradle`:
+- `externalNativeBuild.cmake.path` → `../../native/CMakeLists.txt`
+- `defaultConfig.externalNativeBuild.cmake.arguments` → `PROJECT_BUILD_DIR` and `ANDROID_STL=c++_shared` (required by ReactNative-application.cmake)
+- `sourceSets.main.java.srcDirs` → includes `../../native/kotlin` (Kotlin JNI bridge modules)
+- Registers `PdfPowerToolsPackage` in `MainApplication` (exposes `NativeModules.QPDFBridge` and `NativeModules.MuPDFBridge`)
+
+## Key Directories
+
+```
+mobile/
+  app/            Expo Router screens + utils
+    utils/
+      nativeModules.ts   TypeScript wrappers for JNI bridge calls
+      geminiService.ts   Gemini AI OCR service (models: 2.0-flash, 2.5-flash, 2.5-pro)
+      docxGenerator.ts   Docx generation (web: Blob, native: base64)
+    screens/
+      settings.tsx       Shows engine status (ACTIVE/READY/MISSING) for QPDF & MuPDF
+                         Web preview shows READY (android-only), Android shows ACTIVE/MISSING
+  native/
+    CMakeLists.txt
+    src/
+      qpdf_bridge.cpp    JNI implementations — guarded by #ifdef HAS_QPDF
+      mupdf_bridge.cpp   JNI implementations — guarded by #ifdef HAS_MUPDF
+    kotlin/              Kotlin wrappers: QPDFBridge, MuPDFBridge, PdfPowerToolsPackage
+    third_party/
+      qpdf/libs/         Prebuilt libqpdf.so (arm64-v8a, x86_64) ✅
+      mupdf/libs/        libmupdf.so must be built via GitHub Actions ❌
+  plugins/
+    withPdfNdk.js        Expo config plugin — injects NDK cmake config
+scripts/
+  build_native_libraries.sh   Full build script (libjpeg → QPDF → MuPDF)
+  build_mupdf_only.sh         Focused MuPDF-only build script (GNU Make, no cmake needed)
+.github/workflows/
+  build-native-libs.yml       Manually triggered — builds & commits .so files permanently
+  eas-build.yml               Auto-triggered on push to main — EAS cloud APK build
+```
+
+## Build
+
+```bash
+cd mobile
+pnpm expo prebuild          # regenerates android/
+pnpm expo run:android       # builds + installs on device/emulator
+# or via EAS:
+eas build --platform android --profile preview
+```
+
+## EAS / GitHub Actions Build
+
+- NDK version: **25.2.9519653** (r25b) — must match between `app.json` and `scripts/build_native_libraries.sh`
+- GitHub Actions caches NDK r25b and native `.so` libs between runs
+- pnpm lock file (`pnpm-lock.yaml`) at workspace root is used for Node cache
+- Required GitHub Secrets:
+  - `EXPO_TOKEN` — expo.dev → Account Settings → Access Tokens
+  - `GH_PAT` — GitHub Personal Access Token with `repo` write scope (for committing `.so` files)

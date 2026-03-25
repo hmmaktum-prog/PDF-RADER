@@ -1,0 +1,8 @@
+{
+  "name": "pdf-power-tools-workspace",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@10.26.1"
+}

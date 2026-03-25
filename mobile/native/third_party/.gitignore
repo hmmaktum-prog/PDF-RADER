@@ -1,0 +1,9 @@
+# Force-track prebuilt .so files (never ignore them)
+!*.so
+!*.a
+
+# Ignore large build intermediates
+*.o
+*.obj
+CMakeCache.txt
+CMakeFiles/

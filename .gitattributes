@@ -1,2 +1,16 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Binary files — no LF normalization, diff as binary
+*.so binary
+*.a  binary
+*.o  binary
+*.jar binary
+*.aar binary
+*.apk binary
+*.zip binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.keystore binary
