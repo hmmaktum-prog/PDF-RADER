@@ -29,6 +29,22 @@ React Native (Expo) Android app for offline PDF manipulation using NDK-backed C+
 
 **Both libraries compile correctly** — EAS build log confirmed `#include <qpdf/QPDF.hh>` resolves and `HAS_QPDF=1` / `HAS_MUPDF=1` are set.
 
+### Known Bugs Fixed (2026-03-25 — Round 3)
+
+#### 6. `_layout.tsx` — Missing `screens/image-reader` Stack.Screen registration
+**Bug**: The Stack navigator in `_layout.tsx` was missing a `<Stack.Screen name="screens/image-reader" .../>` entry. The home screen (`index.tsx`) navigates to `/screens/image-reader` when the user taps images, causing a routing error in Expo Router.
+**Fix**: Added `<Stack.Screen name="screens/image-reader" options={{ headerShown: false }} />` to the navigator.
+
+#### 7. `split.tsx` — Returns nonexistent `.zip` path after split
+**Bug**: `handleSplit` returned `outputDir + '/split_output.zip'` when the "Output as ZIP" toggle was on. The native `splitPdf` (QPDF C++ bridge) never creates a ZIP file — it only creates individual `.pdf` files in `outputDir`. Attempting to share the nonexistent path would fail silently.
+**Fix**: Always return `outputDir`. The directory exists and ToolShell correctly detects it as a folder output for sharing.
+
+#### 8. `nativeModules.ts` — Debug logging code left in production `mergePdfs`
+**Bug**: Three `fetch()` calls were embedded in `mergePdfs()` to send internal debug telemetry to a local endpoint (`http://127.0.0.1:7445/ingest/...`). On every merge operation, these fired 3 async HTTP requests (failing silently). The `linked` variable computed solely for these logs was also left unused.
+**Fix**: Removed all debug log blocks and the unused `linked` variable. Removed `DEBUG_LOG_ENDPOINT` and `DEBUG_SESSION_ID` constants.
+
+---
+
 ### Known Bugs Fixed (2026-03-25 — Round 2)
 
 #### 1. `mupdf_bridge.cpp` — use-after-free in fz_try/always/catch pattern

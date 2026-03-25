@@ -46,6 +46,7 @@ const RootLayoutNav = () => {
       <Stack.Screen name="screens/ocr" options={{ headerShown: false }} />
       <Stack.Screen name="screens/settings" options={{ headerShown: false }} />
       <Stack.Screen name="screens/reader" options={{ headerShown: false }} />
+      <Stack.Screen name="screens/image-reader" options={{ headerShown: false }} />
     </Stack>
   );
 };

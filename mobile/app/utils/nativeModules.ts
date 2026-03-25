@@ -42,11 +42,6 @@ const MuPDFBridge: any = nativeMupdfModule ?? {
   isMupdfLinked: () => Promise.resolve(false),
 };
 
-// #region agent log helpers
-const DEBUG_LOG_ENDPOINT = 'http://127.0.0.1:7445/ingest/fbd86430-3391-4ee4-88b7-1ba8d8575017';
-const DEBUG_SESSION_ID = 'ec5b5f';
-// #endregion
-
 function ensureAndroid(name: string): void {
   if (Platform.OS !== 'android') {
     throw new Error(`${name} is only available on Android (NDK)`);
@@ -97,93 +92,7 @@ export async function mergePdfs(
 ): Promise<string> {
   ensureAndroid('mergePdfs');
 
-  // #region agent log: merge pre
-  {
-    const payload = {
-      sessionId: DEBUG_SESSION_ID,
-      runId: 'debug_pre',
-      hypothesisId: 'H1_native_module_or_qpdf_linking',
-      location: 'nativeModules.ts:mergePdfs:pre',
-      message: 'before QPDF merge call',
-      data: {
-        hasNativeQpdfModule,
-        typeofNativeModule: typeof nativeQpdfModule,
-        qpdfHasIsLinkedFn: typeof QPDFBridge?.isQpdfLinked,
-        platformOS: Platform.OS,
-        invertColors,
-        inputCount: inputPaths?.length,
-      },
-      timestamp: Date.now(),
-    };
-    fetch(DEBUG_LOG_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Debug-Session-Id': DEBUG_SESSION_ID,
-      },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
-  }
-  // #endregion
-
-  // Pre-check engine linked state (confirms whether HAS_QPDF was compiled in)
-  const linked = await (async () => {
-    try {
-      if (typeof QPDFBridge?.isQpdfLinked === 'function') return await QPDFBridge.isQpdfLinked();
-      return false;
-    } catch {
-      return false;
-    }
-  })();
-
-  // #region agent log: merge linked pre
-  {
-    const payload = {
-      sessionId: DEBUG_SESSION_ID,
-      runId: 'debug_pre',
-      hypothesisId: 'H3_qpdf_not_linked_compiled_flag',
-      location: 'nativeModules.ts:mergePdfs:pre_check',
-      message: 'QPDF engine linked pre-check',
-      data: { linked },
-      timestamp: Date.now(),
-    };
-    fetch(DEBUG_LOG_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Debug-Session-Id': DEBUG_SESSION_ID,
-      },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
-  }
-  // #endregion
-
   const result = await QPDFBridge.mergePdfs(inputPaths.join(','), outputPath, invertColors);
-
-  // #region agent log: merge result
-  {
-    const payload = {
-      sessionId: DEBUG_SESSION_ID,
-      runId: 'debug_pre',
-      hypothesisId: 'H2_merge_returns_engine_not_linked',
-      location: 'nativeModules.ts:mergePdfs:post',
-      message: 'after QPDF merge call',
-      data: {
-        result,
-        resultIsEngineNotLinked: result === '__ENGINE_NOT_LINKED__',
-      },
-      timestamp: Date.now(),
-    };
-    fetch(DEBUG_LOG_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Debug-Session-Id': DEBUG_SESSION_ID,
-      },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
-  }
-  // #endregion
 
   if (!result || result === '__ENGINE_NOT_LINKED__') {
     if (!hasNativeQpdfModule) {

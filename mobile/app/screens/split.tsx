@@ -60,7 +60,7 @@ export default function SplitScreen() {
     onProgress(35, 'Splitting PDF via QPDF...');
     await splitPdf(selectedFile, outputDir, ranges);
     onProgress(100, 'Split complete!');
-    return outputDir + (outputZip ? '/split_output.zip' : '');
+    return outputDir;
   };
 
   return (
