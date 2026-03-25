@@ -194,10 +194,14 @@ jobs:
               -Dqpdf_build_examples=OFF -DBUILD_SHARED_LIBS=ON \
               -DREQUIRE_CRYPTO_OPENSSL=OFF -DREQUIRE_CRYPTO_GNUTLS=OFF \
               -DUSE_INSECURE_RANDOM=ON \
+              -DCMAKE_PREFIX_PATH="$JPEG_INSTALL" \
               -DJPEG_LIBRARY="$JPEG_INSTALL/lib/libjpeg.so" \
               -DJPEG_INCLUDE_DIR="$JPEG_INSTALL/include" \
+              -DJPEG_INCLUDE_DIRS="$JPEG_INSTALL/include" \
               -DZLIB_LIBRARY="$SYSLIB/libz.so" \
               -DZLIB_INCLUDE_DIR="$SYSROOT/usr/include" \
+              "-DCMAKE_C_FLAGS=-I$JPEG_INSTALL/include" \
+              "-DCMAKE_CXX_FLAGS=-I$JPEG_INSTALL/include" \
               -S "$SRC/qpdf" -B "$SRC/qpdf-build-$ABI"
             cmake --build "$SRC/qpdf-build-$ABI" -j"$(nproc)"
 
