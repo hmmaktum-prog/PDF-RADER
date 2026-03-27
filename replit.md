@@ -38,6 +38,17 @@ The app runs as a **web preview** in Replit using `expo start --web --port 5000`
 
 **Both libraries compile correctly** — EAS build log confirmed `#include <qpdf/QPDF.hh>` resolves and `HAS_QPDF=1` / `HAS_MUPDF=1` are set.
 
+### Known Bugs Fixed (2026-03-27 — EAS Build Fix)
+
+#### 9. `qpdf_bridge.cpp` — QPDF API mismatch: `newDict()` / `getDict()` on QPDFPageObjectHelper
+**Bug**: The EAS build failed with `EAS_BUILD_UNKNOWN_GRADLE_ERROR` (Gradle/CMake/NDK compilation error). The QPDF headers in `third_party/qpdf/include/` are version `11.9.1+future` which removed the deprecated `newDict()` method (renamed to `newDictionary()`) and removed `getDict()` from `QPDFPageObjectHelper` (must go through `getObjectHandle().getDict()`). The code was still using the old API.
+**Errors**: `no member named 'newDict' in 'QPDFObjectHandle'` and `no member named 'getDict' in 'QPDFPageObjectHelper'`  
+**Fix**: 
+- Replaced all `QPDFObjectHandle::newDict()` → `QPDFObjectHandle::newDictionary()` (15 occurrences across resize and nup/booklet functions)
+- Replaced all `newPage.getDict()` / `sourcePage.getDict()` (QPDFPageObjectHelper) → `.getObjectHandle().getDict()`
+
+---
+
 ### Known Bugs Fixed (2026-03-25 — Round 3)
 
 #### 6. `_layout.tsx` — Missing `screens/image-reader` Stack.Screen registration

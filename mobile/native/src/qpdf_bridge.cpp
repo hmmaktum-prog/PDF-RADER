@@ -612,7 +612,7 @@ Java_com_pdfpowertools_native_QPDFBridge_resizePdf(
             QPDFObjectHandle xobj = sourcePage.getFormXObjectForPage();
             std::string xobjName = "/X0";
             
-            QPDFObjectHandle newPageDict = QPDFObjectHandle::newDict();
+            QPDFObjectHandle newPageDict = QPDFObjectHandle::newDictionary();
             newPageDict.replaceKey("/Type", QPDFObjectHandle::newName("/Page"));
             newPageDict.replaceKey("/MediaBox", QPDFObjectHandle::newArray({
                 QPDFObjectHandle::newReal(0), QPDFObjectHandle::newReal(0),
@@ -621,13 +621,13 @@ Java_com_pdfpowertools_native_QPDFBridge_resizePdf(
             
             QPDFPageObjectHelper newPage(newPageDict);
             
-            QPDFObjectHandle resDict = QPDFObjectHandle::newDict();
-            QPDFObjectHandle xobjDict = QPDFObjectHandle::newDict();
+            QPDFObjectHandle resDict = QPDFObjectHandle::newDictionary();
+            QPDFObjectHandle xobjDict = QPDFObjectHandle::newDictionary();
             xobjDict.replaceKey(xobjName, xobj);
             resDict.replaceKey("/XObject", xobjDict);
-            newPage.getDict().replaceKey("/Resources", resDict);
+            newPage.getObjectHandle().getDict().replaceKey("/Resources", resDict);
             
-            QPDFObjectHandle mb = sourcePage.getDict().getKey("/MediaBox");
+            QPDFObjectHandle mb = sourcePage.getObjectHandle().getDict().getKey("/MediaBox");
             double origW = 595.0, origH = 842.0;
             if (mb.isArray() && mb.getArrayNItems() >= 4) {
                 origW = mb.getArrayItem(2).getNumericValue() - mb.getArrayItem(0).getNumericValue();
@@ -660,9 +660,9 @@ Java_com_pdfpowertools_native_QPDFBridge_resizePdf(
                                       + xobjName + " Do\nQ\n";
                                       
             QPDFObjectHandle contentStreamObj = QPDFObjectHandle::newStream(&res, contentStream);
-            newPage.getDict().replaceKey("/Contents", contentStreamObj);
+            newPage.getObjectHandle().getDict().replaceKey("/Contents", contentStreamObj);
             
-            resPh.addPage(newPage.getDict(), false);
+            resPh.addPage(newPage.getObjectHandle().getDict(), false);
         }
 
         QPDFWriter w(res, out.c_str());
@@ -713,7 +713,7 @@ static bool renderGridPages(const std::string& in, const std::string& out, int c
         }
 
         for (int s = 0; s < sheetCount; ++s) {
-            QPDFObjectHandle newPageDict = QPDFObjectHandle::newDict();
+            QPDFObjectHandle newPageDict = QPDFObjectHandle::newDictionary();
             newPageDict.replaceKey("/Type", QPDFObjectHandle::newName("/Page"));
             newPageDict.replaceKey("/MediaBox", QPDFObjectHandle::newArray({
                 QPDFObjectHandle::newReal(0), QPDFObjectHandle::newReal(0),
@@ -741,19 +741,19 @@ static bool renderGridPages(const std::string& in, const std::string& out, int c
                     QPDFObjectHandle xobj = sourcePage.getFormXObjectForPage();
                     std::string xobjName = "/X" + std::to_string(i);
                     
-                    QPDFObjectHandle resDict = newPage.getDict().getKey("/Resources");
+                    QPDFObjectHandle resDict = newPage.getObjectHandle().getDict().getKey("/Resources");
                     if (!resDict.isDictionary()) {
-                        resDict = QPDFObjectHandle::newDict();
-                        newPage.getDict().replaceKey("/Resources", resDict);
+                        resDict = QPDFObjectHandle::newDictionary();
+                        newPage.getObjectHandle().getDict().replaceKey("/Resources", resDict);
                     }
                     QPDFObjectHandle xobjDict = resDict.getKey("/XObject");
                     if (!xobjDict.isDictionary()) {
-                        xobjDict = QPDFObjectHandle::newDict();
+                        xobjDict = QPDFObjectHandle::newDictionary();
                         resDict.replaceKey("/XObject", xobjDict);
                     }
                     xobjDict.replaceKey(xobjName, xobj);
                     
-                    QPDFObjectHandle mbox = sourcePage.getDict().getKey("/MediaBox");
+                    QPDFObjectHandle mbox = sourcePage.getObjectHandle().getDict().getKey("/MediaBox");
                     double origW = 595.0; double origH = 842.0;
                     if (mbox.isArray() && mbox.getArrayNItems() >= 4) {
                         origW = mbox.getArrayItem(2).getNumericValue() - mbox.getArrayItem(0).getNumericValue();
@@ -782,9 +782,9 @@ static bool renderGridPages(const std::string& in, const std::string& out, int c
             }
             if (hasContent) {
                 QPDFObjectHandle contentStreamObj = QPDFObjectHandle::newStream(&res, contentStream);
-                newPage.getDict().replaceKey("/Contents", contentStreamObj);
+                newPage.getObjectHandle().getDict().replaceKey("/Contents", contentStreamObj);
             }
-            resPh.addPage(newPage.getDict(), false);
+            resPh.addPage(newPage.getObjectHandle().getDict(), false);
         }
         QPDFWriter w(res, out.c_str());
         w.write();
