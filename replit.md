@@ -38,6 +38,20 @@ The app runs as a **web preview** in Replit using `expo start --web --port 5000`
 
 **Both libraries compile correctly** — EAS build log confirmed `#include <qpdf/QPDF.hh>` resolves and `HAS_QPDF=1` / `HAS_MUPDF=1` are set.
 
+### Known Bugs Fixed (2026-03-27 — Rotate Screen Crash)
+
+#### 16. `grayscale.tsx` — Duplicate `react-native` import block
+**Bug**: `Image` and `ActivityIndicator` were imported in a second separate `import { ... } from 'react-native'` line after the first. While not causing a crash, it was a code smell and a copy-paste artifact.
+**Fix**: Merged both into a single import statement.
+
+#### 15. `rotate.tsx` — App crash on screen open: missing `useState` + `useEffect` imported from wrong module
+**Bug**: `rotate.tsx` was missing `import React, { useState, useEffect } from 'react'` entirely. `useState` was used but never imported (causes `ReferenceError: useState is not defined` on screen mount = instant crash). `useEffect` was incorrectly pulled from `'react-native'` (it doesn't exist there). The screen crashed immediately when the user tapped "Rotate Pages".
+**Fix**: Added correct `import React, { useState, useEffect } from 'react'` at the top and removed `useEffect` from the `react-native` import line.
+
+**Also fixed:** C++ `rotatePdf` page selection now supports range syntax (e.g. `"1, 3-5, 8"`) in addition to single page numbers. Previously `std::stoi("3-5")` would silently truncate to `3` only. Now the token is checked for a `-` and parsed as a from/to range. UI hint and placeholder updated to reflect this.
+
+---
+
 ### Known Bugs Fixed (2026-03-27 — Debug Log Analysis)
 
 #### 14. `ToolShell.tsx` — "Continue" stores directory path as next tool's input, causing QPDF Split crash

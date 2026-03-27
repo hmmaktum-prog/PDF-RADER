@@ -403,14 +403,34 @@ Java_com_pdfpowertools_native_QPDFBridge_rotatePdf(
                 page.rotatePage(angle, true);
             }
         } else {
+            // Parse comma-separated list of single page numbers and ranges (e.g. "1, 3-5, 8")
             auto parts = splitCsv(pgs);
             for (const auto& p : parts) {
-                try {
-                    int idx = std::stoi(p);
-                    if (idx >= 1 && idx <= all_pages.size()) {
-                        all_pages[idx - 1].rotatePage(angle, true);
-                    }
-                } catch(...) {}
+                // Trim whitespace
+                size_t start = p.find_first_not_of(" \t");
+                size_t end = p.find_last_not_of(" \t");
+                std::string token = (start == std::string::npos) ? "" : p.substr(start, end - start + 1);
+                size_t dash = token.find('-');
+                if (dash != std::string::npos && dash > 0) {
+                    // Range like "3-5"
+                    try {
+                        int from = std::stoi(token.substr(0, dash));
+                        int to = std::stoi(token.substr(dash + 1));
+                        from = std::max(1, from);
+                        to = std::min((int)all_pages.size(), to);
+                        for (int i = from; i <= to; ++i) {
+                            all_pages[i - 1].rotatePage(angle, true);
+                        }
+                    } catch (...) {}
+                } else {
+                    // Single page number
+                    try {
+                        int idx = std::stoi(token);
+                        if (idx >= 1 && idx <= (int)all_pages.size()) {
+                            all_pages[idx - 1].rotatePage(angle, true);
+                        }
+                    } catch (...) {}
+                }
             }
         }
         QPDFWriter w(pdf, out.c_str());

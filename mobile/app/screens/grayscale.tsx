@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Image, ActivityIndicator } from 'react-native';
 import ToolShell from '../components/ToolShell';
 import { useAppTheme } from '../context/ThemeContext';
 import { grayscalePdf, renderPageToImage } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Image, ActivityIndicator } from 'react-native';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { usePreselectedFile } from '../hooks/usePreselectedFile';
 

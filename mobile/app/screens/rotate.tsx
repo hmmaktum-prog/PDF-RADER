@@ -1,10 +1,10 @@
-import { View, Text, TouchableOpacity, StyleSheet, TextInput, Alert, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, TextInput, Alert, Switch, Image, ActivityIndicator } from 'react-native';
 import ToolShell from '../components/ToolShell';
 import { useAppTheme } from '../context/ThemeContext';
 import { rotatePdf, renderPageToImage } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Image, ActivityIndicator, useEffect } from 'react-native';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
@@ -16,7 +16,7 @@ const ANGLES = [
 
 export default function RotateScreen() {
   const { isDark } = useAppTheme();
-  
+
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
 
@@ -58,8 +58,8 @@ export default function RotateScreen() {
       const outPath = `${FileSystem.cacheDirectory}preview_${Date.now()}.jpg`;
       await renderPageToImage(selectedFile, 0, outPath, false);
       setPreviewUri(outPath);
-    } catch (e: any) {
-      Alert.alert('Preview Error', e.message);
+    } catch {
+      // Preview is optional — silently skip on error
     } finally {
       setIsLoadingPreview(false);
     }
@@ -100,9 +100,9 @@ export default function RotateScreen() {
         <View style={{ alignItems: 'center', paddingVertical: 20 }}>
           {selectedFile ? (
             previewUri ? (
-              <Image 
-                source={{ uri: previewUri }} 
-                style={{ width: 140, height: 200, resizeMode: 'contain', transform: [{ rotate: `${angle}deg` }], borderWidth: 1, borderColor }} 
+              <Image
+                source={{ uri: previewUri }}
+                style={{ width: 140, height: 200, resizeMode: 'contain', transform: [{ rotate: `${angle}deg` }], borderWidth: 1, borderColor }}
               />
             ) : isLoadingPreview ? (
               <ActivityIndicator size="large" color={accent} />
@@ -163,13 +163,14 @@ export default function RotateScreen() {
       {!rotateAll && (
         <View style={{ marginTop: 12 }}>
           <Text style={[styles.inputLabel, { color: textColor }]}>Specific Pages</Text>
-          <Text style={[styles.hint, { color: muted }]}>e.g. "1, 3-5, 8"</Text>
+          <Text style={[styles.hint, { color: muted }]}>Comma-separated numbers or ranges e.g. "1, 3-5, 8"</Text>
           <TextInput
             style={[styles.input, { backgroundColor: inputBg, color: textColor, borderColor }]}
             value={pageRange}
             onChangeText={setPageRange}
             placeholder="1, 3-5, 8"
             placeholderTextColor={muted}
+            keyboardType="default"
             testID="input-page-range"
           />
         </View>
@@ -189,8 +190,6 @@ const styles = StyleSheet.create({
   angleLabel: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
   toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 12, marginBottom: 8 },
   toggleLabel: { fontSize: 14, fontWeight: '600' },
-  toggleOuter: { width: 46, height: 26, borderRadius: 13, justifyContent: 'center' },
-  toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' },
   inputLabel: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
   hint: { fontSize: 12, marginBottom: 6 },
   input: { borderWidth: 1, borderRadius: 10, padding: 14, fontSize: 16 },
