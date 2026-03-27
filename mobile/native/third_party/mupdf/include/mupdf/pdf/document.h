@@ -198,15 +198,9 @@ pdf_document *pdf_keep_document(fz_context *ctx, pdf_document *doc);
 	detect any errors.
 
 	The result of the check is saved, so calling this function again
-	after a successful completion is a no-op.
-
-	If this function throws (either because of out of memory (SYSTEM),
-	or other reasons) then the file should be considered suspect.
-
-	Returns non-zero if a repair was triggered during checking, and
-	hence changes to the file may have been lost.
+	after the initial check is a no-op.
 */
-int pdf_check_document(fz_context *ctx, pdf_document *doc);
+void pdf_check_document(fz_context *ctx, pdf_document *doc);
 
 /*
 	down-cast a fz_document to a pdf_document.
@@ -799,9 +793,6 @@ FZ_DATA extern const pdf_write_options pdf_default_write_options;
 		s: sanitize content streams
 */
 pdf_write_options *pdf_parse_write_options(fz_context *ctx, pdf_write_options *opts, const char *args);
-
-void pdf_init_write_options(fz_context *ctx, pdf_write_options *opts);
-void pdf_apply_write_options(fz_context *ctx, pdf_write_options *opts, fz_options *args);
 
 /*
 	Returns true if there are digital signatures waiting to

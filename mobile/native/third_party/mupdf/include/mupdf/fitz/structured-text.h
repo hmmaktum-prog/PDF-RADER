@@ -608,22 +608,6 @@ void fz_print_stext_trailer_as_xhtml(fz_context *ctx, fz_output *out);
 void fz_print_stext_page_as_xml(fz_context *ctx, fz_output *out, fz_stext_page *page, int id);
 
 /**
-	Output structured text to a file in XML format, with flags
-	to control how much of the structure is displayed.
-*/
-typedef enum {
-	FZ_STEXT_XML_FLAGS_CHARS = 1,
-	FZ_STEXT_XML_FLAGS_POINTERS = 2
-} fz_stext_xml_flags;
-void fz_print_stext_page_as_xml_with_flags(fz_context *ctx, fz_output *out, fz_stext_page *page, int id, fz_stext_xml_flags flags);
-
-/**
-	Convenience function to call the above.
-*/
-void fz_debug_stext_page(fz_context *ctx, fz_stext_page *page, int id);
-
-
-/**
 	Output structured text to a file in JSON format.
 */
 void fz_print_stext_page_as_json(fz_context *ctx, fz_output *out, fz_stext_page *page, float scale);
@@ -723,21 +707,11 @@ typedef struct
 	fz_rect clip;
 } fz_stext_options;
 
-void fz_init_stext_options(fz_context *ctx, fz_stext_options *opts);
-
 /**
 	Parse stext device options from a comma separated key-value
 	string.
-
-	This initialises the opts structure.
 */
 fz_stext_options *fz_parse_stext_options(fz_context *ctx, fz_stext_options *opts, const char *string);
-
-/**
-	Parse stext device options from an fz_options struct
-	into an already initialised opts structure.
-*/
-void fz_apply_stext_options(fz_context *ctx, fz_stext_options *opts, fz_options *options);
 
 /**
 	Perform segmentation analysis on an (unstructured) page to look for
@@ -916,7 +890,7 @@ fz_device *fz_new_ocr_device(fz_context *ctx, fz_device *target, fz_matrix ctm, 
 			const char *datadir, int (*progress)(fz_context *, void *, int), void *progress_arg);
 
 fz_device *fz_new_ocr_device_with_options(fz_context *ctx, fz_device *target, fz_matrix ctm, fz_rect mediabox, int with_list, const char *language,
-			const char *datadir, int (*progress)(fz_context *, void *, int), void *progress_arg, fz_options *options);
+			const char *datadir, int (*progress)(fz_context *, void *, int), void *progress_arg, const char *options);
 
 fz_document *fz_open_reflowed_document(fz_context *ctx, fz_document *underdoc, const fz_stext_options *opts);
 
@@ -950,11 +924,7 @@ typedef enum
 
 FZ_DATA extern const char *fz_search_options_usage;
 
-void fz_init_search_options(fz_context *ctx, fz_search_options *options);
-
-fz_search_options *fz_parse_search_options(fz_context *ctx, fz_search_options *options, const char *args);
-
-void fz_apply_search_options(fz_context *ctx, fz_search_options *options, fz_options *opts);
+fz_search_options fz_parse_search_options(const char *options);
 
 /**
 	Create a new search.
@@ -1272,13 +1242,5 @@ fz_flotilla_size(fz_context *ctx, fz_flotilla *flot);
 */
 fz_rect
 fz_flotilla_raft_area(fz_context *ctx, fz_flotilla *flot, int i);
-
-/*
-	Internal debugging function to verify the soundness
-	of an stext page.
-
-	title: optional string to be printed.
-*/
-void fz_verify_stext_page(fz_context *ctx, fz_stext_page *page, const char *title);
 
 #endif
