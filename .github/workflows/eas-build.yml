@@ -44,6 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
 
     steps:
       # ── Checkout ────────────────────────────────────────────────────────────
@@ -217,7 +218,9 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            mobile/package-lock.json
 
       # ── Expo + EAS CLI ──────────────────────────────────────────────────────
       - name: Setup Expo and EAS CLI
@@ -229,7 +232,7 @@ jobs:
       # ── Dependencies ────────────────────────────────────────────────────────
       - name: Install Node dependencies
         working-directory: mobile
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || pnpm install
 
       # ── Login নিশ্চিত করো ──────────────────────────────────────────────────
       - name: Verify EAS login

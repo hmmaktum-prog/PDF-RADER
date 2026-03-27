@@ -805,7 +805,18 @@ Java_com_pdfpowertools_native_QPDFBridge_nupLayout(
     const std::string out = normalizePath(jstringToStd(env, outputPath));
 
 #ifdef HAS_QPDF
+    std::string seqStr = jstringToStd(env, sequence);
     std::vector<int> seq;
+    if (!seqStr.empty()) {
+        auto parts = splitCsv(seqStr);
+        for (const auto& p : parts) {
+            try {
+                if (!p.empty()) seq.push_back(std::stoi(p));
+            } catch (...) {
+                LOGE("Invalid sequence part: %s", p.c_str());
+            }
+        }
+    }
     return renderGridPages(in, out, cols, rows, seq) ? JNI_TRUE : JNI_FALSE;
 #endif
     return copyFileSafe(in, out) ? JNI_TRUE : JNI_FALSE;

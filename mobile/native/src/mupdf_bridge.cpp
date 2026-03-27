@@ -541,7 +541,7 @@ Java_com_pdfpowertools_native_MuPDFBridge_enhanceContrastPdf(
             int n = fz_pixmap_components(ctx, pix);
             int len = width * height * n;
             
-            float contrast = level; 
+            float contrast = level * 20.0f; // Map 1-5 to 20-100 for balanced contrast
             float factor = (259.0f * (contrast + 255.0f)) / (255.0f * (259.0f - contrast));
             
             for (int j = 0; j < len; j += n) {

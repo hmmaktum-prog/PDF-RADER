@@ -21,7 +21,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EAS_PACKAGE_MANAGER": "pnpm"
+        "EAS_PACKAGE_MANAGER": "pnpm",
+        "NODE_ENV": "production"
       }
     },
     "production": {
