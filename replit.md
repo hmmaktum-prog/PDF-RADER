@@ -14,9 +14,9 @@ React Native (Expo) Android app for offline PDF manipulation using NDK-backed C+
 The app runs as a **web preview** in Replit using `expo start --web --port 5000`. The native Android/NDK features (QPDF, MuPDF) are not available in the web preview — those require an actual Android build via EAS. The web preview shows the UI and web-compatible features.
 
 ### Key packages fixed for Replit compatibility
-- `expo-build-properties` corrected from `~15.0.8` → `~0.13.3` (correct version for Expo SDK 54)
-- `expo-blur` added (was missing from package.json)
-- `@lottiefiles/dotlottie-react` added (required by lottie-react-native for web)
+- `expo-build-properties` corrected to `~1.0.10` (correct version for Expo SDK 54, per expo doctor)
+- `expo-blur` corrected to `~15.0.8` (correct version for Expo SDK 54, per expo doctor)
+- `@lottiefiles/dotlottie-react` added (required by lottie-react-native for web preview)
 
 ## Native Build (NDK)
 
