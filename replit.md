@@ -38,6 +38,26 @@ The app runs as a **web preview** in Replit using `expo start --web --port 5000`
 
 **Both libraries compile correctly** — EAS build log confirmed `#include <qpdf/QPDF.hh>` resolves and `HAS_QPDF=1` / `HAS_MUPDF=1` are set.
 
+### Known Bugs Fixed (2026-03-27 — Debug Log Analysis)
+
+#### 14. `ToolShell.tsx` — "Continue" stores directory path as next tool's input, causing QPDF Split crash
+**Bug**: After a Split operation, tapping "Continue" in `ToolShell` called `setSharedFilePath(resultPath)` where `resultPath` was the split output **directory** (e.g. `split_output_1774619393424`). `usePreselectedFile` then pre-filled this directory path as the PDF input on the next screen. QPDF tried to `processFile()` on the directory and threw: `QPDF Split Error: split_output_...: read 1024 bytes`.
+**Fix**: In `handleContinue`, detect whether the result path is a directory (no file extension after the last `/`). If it is a directory, skip calling `setSharedFilePath` so only real PDF file paths flow to the next tool.
+
+#### 13. `ToolShell.tsx` — StatusBar `backgroundColor` causes 50+ warnings on Android 15+
+**Bug**: `<StatusBar backgroundColor="transparent" translucent />` is rendered on every tool screen. On Android API 35+ (edge-to-edge mode), setting `backgroundColor` is silently ignored and logs `StatusBarModule: Ignored status bar change, current activity is edge-to-edge.` on every re-render — producing 50+ identical warnings in a single session.
+**Fix**: Conditionally pass `backgroundColor` only on Android API < 35 using `Platform.Version >= 35 ? undefined : 'transparent'`.
+
+#### 12. `_layout.tsx` — iOS-only `headerBackTitle` causes repeated Android warnings
+**Bug**: `screenOptions` included `headerBackTitle: 'Back'` which is an iOS-only RNScreens prop. On Android this logged `[RNScreens] backTitle prop is not available on Android` (and similar for `backTitleFontFamily`, `backTitleVisible`, `disableBackButtonMenu`, `largeTitleHideShadow`, `largeTitleFontWeight`, `largeTitleFontFamily`) on every navigation event.
+**Fix**: Wrapped the prop in `...(Platform.OS === 'ios' ? { headerBackTitle: 'Back' } : {})`.
+
+#### 11. `app.json` — Missing `enableOnBackInvokedCallback` in Android manifest
+**Bug**: Android logged `W/OnBackInvokedCallback: Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.` The predictive back gesture API was not enabled, causing suboptimal back-navigation UX on Android 13+.
+**Fix**: Added `"enableOnBackInvokedCallback": true` to the `android` section of `app.json`.
+
+---
+
 ### Known Bugs Fixed (2026-03-27 — EAS Build Fix)
 
 #### 10. `build-native-libs.yml` + `build_native_libraries.sh` — MuPDF version mismatch: headers 1.28.0 vs .so 1.27.2

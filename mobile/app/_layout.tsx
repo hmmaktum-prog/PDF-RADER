@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { Platform } from 'react-native';
 import { ThemeProvider, useAppTheme } from './context/ThemeContext';
 import { ContinueProvider } from './context/ContinueContext';
 import { PasswordProvider } from './context/PasswordContext';
@@ -18,7 +19,9 @@ const RootLayoutNav = () => {
         headerStyle: { backgroundColor: headerBg },
         headerTintColor: headerTint,
         headerShadowVisible: true,
-        headerBackTitle: 'Back',
+        // headerBackTitle and related props are iOS-only; omitting them on Android
+        // prevents dozens of "[RNScreens] prop is not available on Android" warnings.
+        ...(Platform.OS === 'ios' ? { headerBackTitle: 'Back' } : {}),
         contentStyle: { backgroundColor: isDark ? '#000000' : '#f2f2f7' },
       }}
     >

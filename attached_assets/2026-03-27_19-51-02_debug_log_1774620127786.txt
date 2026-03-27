@@ -1,0 +1,749 @@
+W/fpowertools.app( 8129): Unexpected CPU variant for x86: x86_64.
+
+W/fpowertools.app( 8129): Known variants: atom, sandybridge, silvermont, kabylake, default
+
+D/CompatibilityChangeReporter( 8129): Compat change id reported: 171979766; UID 10172; state: ENABLED
+
+D/nativeloader( 8129): Configuring classloader-namespace for other apk /data/app/~~uTaNzcdoqDT_cjf0GchzJw==/com.pdfpowertools.app-HHLPHlCELAvZDuVbfegW5w==/base.apk. target_sdk_version=34, uses_libraries=, library_path=/data/app/~~uTaNzcdoqDT_cjf0GchzJw==/com.pdfpowertools.app-HHLPHlCELAvZDuVbfegW5w==/lib/x86_64:/data/app/~~uTaNzcdoqDT_cjf0GchzJw==/com.pdfpowertools.app-HHLPHlCELAvZDuVbfegW5w==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.pdfpowertools.app
+
+V/GraphicsEnvironment( 8129): ANGLE Developer option for 'com.pdfpowertools.app' set to: 'default'
+
+V/GraphicsEnvironment( 8129): ANGLE GameManagerService for com.pdfpowertools.app: false
+
+V/GraphicsEnvironment( 8129): Neither updatable production driver nor prerelease driver is supported.
+
+D/NetworkSecurityConfig( 8129): No Network Security Config specified, using platform default
+
+D/NetworkSecurityConfig( 8129): No Network Security Config specified, using platform default
+
+W/SoLoader( 8129): Initializing SoLoader: 0
+
+W/SoLoader( 8129): Recording new base apk path: /data/app/~~uTaNzcdoqDT_cjf0GchzJw==/com.pdfpowertools.app-HHLPHlCELAvZDuVbfegW5w==/base.apk
+
+W/SoLoader( 8129): Previously recorded 0 base apk paths.
+
+I/SoLoader( 8129): Preparing SO source: DirectorySoSource[root = /vendor/lib64 flags = 2]
+
+I/SoLoader( 8129): Preparing SO source: DirectorySoSource[root = /system/lib64 flags = 2]
+
+I/SoLoader( 8129): Preparing SO source: DirectApkSoSource[root = [/data/app/~~uTaNzcdoqDT_cjf0GchzJw==/com.pdfpowertools.app-HHLPHlCELAvZDuVbfegW5w==/base.apk!/lib/x86_64]]
+
+I/SoLoader( 8129): Preparing SO source: ApplicationSoSource[DirectorySoSource[root = /data/app/~~uTaNzcdoqDT_cjf0GchzJw==/com.pdfpowertools.app-HHLPHlCELAvZDuVbfegW5w==/lib/x86_64 flags = 0]]
+
+I/SoLoader( 8129): init finish: 4 SO sources prepared
+
+W/SoLoader( 8129): SoLoader initialized: 8
+
+D/jni_lib_merge( 8129): Entering merged library JNI_OnLoad.
+
+D/jni_lib_merge( 8129): Preparing 12 pre-merged libs (including stub)
+
+D/jni_lib_merge( 8129): Preparing to register libfabricjni_so.  onload_func: 0x74a4d1eb2ba0
+
+D/jni_lib_merge( 8129): Preparing to register libreact_devsupportjni_so.  onload_func: 0x74a4d1f8e530
+
+D/jni_lib_merge( 8129): Preparing to register libreact_featureflagsjni_so.  onload_func: 0x74a4d1fa10a0
+
+D/jni_lib_merge( 8129): Preparing to register libreact_newarchdefaults_so.  onload_func: 0x74a4d1fc7fa0
+
+D/jni_lib_merge( 8129): Preparing to register libreactnativeblob_so.  onload_func: 0x74a4d206fa50
+
+D/jni_lib_merge( 8129): Preparing to register libreactnativejni_so.  onload_func: 0x74a4d208a8c0
+
+D/jni_lib_merge( 8129): Preparing to register libreactnativejni_common_so.  onload_func: 0x74a4d2091150
+
+D/jni_lib_merge( 8129): Preparing to register librninstance_so.  onload_func: 0x74a4d20af450
+
+D/jni_lib_merge( 8129): Preparing to register libturbomodulejsijni_so.  onload_func: 0x74a4d215ab80
+
+D/jni_lib_merge( 8129): Preparing to register libuimanagerjni_so.  onload_func: 0x74a4d2162ab0
+
+D/jni_lib_merge( 8129): Preparing to register libyoga_so.  onload_func: 0x74a4d216a130
+
+D/jni_lib_merge( 8129): About to register 11 actual methods.
+
+D/jni_lib_merge( 8129): Entering merged library JNI_OnLoad.
+
+D/jni_lib_merge( 8129): Preparing 12 pre-merged libs (including stub)
+
+D/jni_lib_merge( 8129): Preparing to register libfabricjni_so.  onload_func: 0x74a4d1eb2ba0
+
+D/jni_lib_merge( 8129): Preparing to register libreact_devsupportjni_so.  onload_func: 0x74a4d1f8e530
+
+D/jni_lib_merge( 8129): Preparing to register libreact_featureflagsjni_so.  onload_func: 0x74a4d1fa10a0
+
+D/jni_lib_merge( 8129): Preparing to register libreact_newarchdefaults_so.  onload_func: 0x74a4d1fc7fa0
+
+D/jni_lib_merge( 8129): Preparing to register libreactnativeblob_so.  onload_func: 0x74a4d206fa50
+
+D/jni_lib_merge( 8129): Preparing to register libreactnativejni_so.  onload_func: 0x74a4d208a8c0
+
+D/jni_lib_merge( 8129): Preparing to register libreactnativejni_common_so.  onload_func: 0x74a4d2091150
+
+D/jni_lib_merge( 8129): Preparing to register librninstance_so.  onload_func: 0x74a4d20af450
+
+D/jni_lib_merge( 8129): Preparing to register libturbomodulejsijni_so.  onload_func: 0x74a4d215ab80
+
+D/jni_lib_merge( 8129): Preparing to register libuimanagerjni_so.  onload_func: 0x74a4d2162ab0
+
+D/jni_lib_merge( 8129): Preparing to register libyoga_so.  onload_func: 0x74a4d216a130
+
+D/jni_lib_merge( 8129): About to register 11 actual methods.
+
+D/libEGL  ( 8129): loaded /vendor/lib64/egl/libEGL_emulation.so
+
+D/AppCompatDelegate( 8129): Checking for metadata for AppLocalesMetadataHolderService : Service not found
+
+D/libEGL  ( 8129): loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+
+D/libEGL  ( 8129): loaded /vendor/lib64/egl/libGLESv2_emulation.so
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.startSurface(surfaceId = 0): Schedule
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.attachSurface(surfaceId = 0)
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.getOrCreateReactInstanceTask()
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.getOrCreateReactInstanceTask(): Start
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.getJSBundleLoader()
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.getOrCreateReactContext(): Creating BridgelessReactContext
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.getOrCreateReactInstanceTask(): Creating ReactInstance
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onHostResume(activity)
+
+W/unknown:BridgelessReact( 8129): ReactContext.onHostResume()
+
+D/jni_lib_merge( 8129): Entering merged library JNI_OnLoad.
+
+D/jni_lib_merge( 8129): Preparing 4 pre-merged libs (including stub)
+
+D/jni_lib_merge( 8129): Preparing to register libhermes_executor_so.  onload_func: 0x74a4ce21c730
+
+D/jni_lib_merge( 8129): Preparing to register libhermesinstancejni_so.  onload_func: 0x74a4ce223db0
+
+D/jni_lib_merge( 8129): Preparing to register libjsijniprofiler_so.  onload_func: 0x74a4ce224540
+
+D/jni_lib_merge( 8129): About to register 3 actual methods.
+
+D/HostConnection( 8129): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_native_sync_v3 ANDROID_EMU_native_sync_v4 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_YUV_Cache ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_sync_buffer_data ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_multi_configs ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+
+W/OpenGLRenderer( 8129): Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+
+W/OpenGLRenderer( 8129): Failed to initialize 101010-2 format, error = EGL_SUCCESS
+
+D/EGL_emulation( 8129): eglCreateContext: 0x74a5cbbdfed0: maj 3 min 0 rcv 3
+
+D/EGL_emulation( 8129): eglMakeCurrent: 0x74a5cbbdfed0: ver 3 0 (tinfo 0x74a7ee850080) (first time)
+
+I/Gralloc4( 8129): mapper 4.x is not supported
+
+I/ExpoModulesCore( 8129): ✅ AppContext was initialized
+
+W/Gralloc4( 8129): allocator 4.x is not supported
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.getOrCreateReactInstanceTask(): Loading JS Bundle
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.getOrCreateReactInstanceTask(): Calling DevSupportManagerBase.onNewReactContextCreated(reactContext)
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.startSurface(surfaceId = 0): Execute
+
+D/HostConnection( 8129): HostComposition ext ANDROID_EMU_CHECKSUM_HELPER_v1 ANDROID_EMU_native_sync_v2 ANDROID_EMU_native_sync_v3 ANDROID_EMU_native_sync_v4 ANDROID_EMU_dma_v1 ANDROID_EMU_direct_mem ANDROID_EMU_host_composition_v1 ANDROID_EMU_host_composition_v2 ANDROID_EMU_YUV_Cache ANDROID_EMU_has_shared_slots_host_memory_allocator ANDROID_EMU_sync_buffer_data ANDROID_EMU_read_color_buffer_dma ANDROID_EMU_hwc_multi_configs ANDROID_EMU_hwc_color_transform GL_OES_EGL_image_external_essl3 GL_OES_vertex_array_object GL_KHR_texture_compression_astc_ldr ANDROID_EMU_host_side_tracing ANDROID_EMU_gles_max_version_3_0 
+
+W/Parcel  ( 8129): Expecting binder but got null!
+
+D/CompatibilityChangeReporter( 8129): Compat change id reported: 210923482; UID 10172; state: ENABLED
+
+W/unknown:BridgelessReact( 8129): ReactContext.onHostResume()
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.getOrCreateReactInstanceTask(): Executing ReactInstanceEventListeners
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.th3rdwave.safeareacontext.SafeAreaProviderManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.uimanager.LayoutShadowNode
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.rnscreens.SearchBarManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.rnscreens.ScreenFooterManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.rnscreens.gamma.tabs.TabScreenViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.rnscreens.ScreenContainerViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.rnscreens.gamma.tabs.TabsHostViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.rnscreens.ModalScreenViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class expo.modules.kotlin.views.GroupViewManagerWrapper
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.rnscreens.ScreenStackHeaderConfigViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.rnscreens.ScreenContentWrapperManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.th3rdwave.safeareacontext.SafeAreaViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.th3rdwave.safeareacontext.SafeAreaViewShadowNode
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.rnscreens.ScreenViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class expo.modules.kotlin.views.SimpleViewManagerWrapper
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.rnscreens.ScreenStackHeaderSubviewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.rnscreens.ScreenStackViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.airbnb.android.react.lottie.LottieAnimationViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.gesturehandler.react.RNGestureHandlerButtonViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.safeareaview.ReactSafeAreaViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.safeareaview.ReactSafeAreaViewShadowNode
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.modal.ReactModalHostManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.text.frescosupport.FrescoBasedReactTextInlineImageViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.text.frescosupport.FrescoBasedReactTextInlineImageShadowNode
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.progressbar.ReactProgressBarViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.progressbar.ProgressBarShadowNode
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.scroll.ReactHorizontalScrollViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.image.ReactImageManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.text.ReactTextViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.text.ReactTextShadowNode
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.scroll.ReactHorizontalScrollContainerViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.unimplementedview.ReactUnimplementedViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.scroll.ReactScrollViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.view.ReactViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.drawer.ReactDrawerLayoutManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.switchview.ReactSwitchManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.switchview.ReactSwitchShadowNode
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.text.ReactVirtualTextViewManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.text.ReactVirtualTextShadowNode
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.swiperefresh.SwipeRefreshLayoutManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.text.ReactRawTextManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.text.ReactRawTextShadowNode
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.textinput.ReactTextInputManager
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.facebook.react.views.textinput.ReactTextInputShadowNode
+
+W/unknown:ViewManagerPropertyUpdater( 8129): Could not find generated setter for class com.swmansion.gesturehandler.react.RNGestureHandlerRootViewManager
+
+W/BridgelessReactContext( 8129): [WARNING] Bridgeless doesn't support CatalystInstance. Accessing an API that's not part of the new architecture is not encouraged usage.
+
+I/ExpoModulesCore( 8129): ✅ JSI interop was installed
+
+I/ExpoModulesCore( 8129): ✅ Constants were exported
+
+I/ReactNativeJS( 8129): Running "main"
+
+V/AsyncStorageExpoMigration( 8129): No scoped database found
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+D/jni_lib_merge( 8129): Entering merged library JNI_OnLoad.
+
+D/jni_lib_merge( 8129): Preparing 12 pre-merged libs (including stub)
+
+D/jni_lib_merge( 8129): Preparing to register libfabricjni_so.  onload_func: 0x74a4d1eb2ba0
+
+D/jni_lib_merge( 8129): Preparing to register libreact_devsupportjni_so.  onload_func: 0x74a4d1f8e530
+
+D/jni_lib_merge( 8129): Preparing to register libreact_featureflagsjni_so.  onload_func: 0x74a4d1fa10a0
+
+D/jni_lib_merge( 8129): Preparing to register libreact_newarchdefaults_so.  onload_func: 0x74a4d1fc7fa0
+
+D/jni_lib_merge( 8129): Preparing to register libreactnativeblob_so.  onload_func: 0x74a4d206fa50
+
+D/jni_lib_merge( 8129): Preparing to register libreactnativejni_so.  onload_func: 0x74a4d208a8c0
+
+D/jni_lib_merge( 8129): Preparing to register libreactnativejni_common_so.  onload_func: 0x74a4d2091150
+
+D/jni_lib_merge( 8129): Preparing to register librninstance_so.  onload_func: 0x74a4d20af450
+
+D/jni_lib_merge( 8129): Preparing to register libturbomodulejsijni_so.  onload_func: 0x74a4d215ab80
+
+D/jni_lib_merge( 8129): Preparing to register libuimanagerjni_so.  onload_func: 0x74a4d2162ab0
+
+D/jni_lib_merge( 8129): Preparing to register libyoga_so.  onload_func: 0x74a4d216a130
+
+D/jni_lib_merge( 8129): About to register 11 actual methods.
+
+W/[RNScreens]( 8129): backTitle prop is not available on Android
+
+W/[RNScreens]( 8129): backTitleFontFamily prop is not available on Android
+
+W/[RNScreens]( 8129): disableBackButtonMenu prop is not available on Android
+
+W/[RNScreens]( 8129): backTitleVisible prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleHideShadow prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleFontWeight prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleFontFamily prop is not available on Android
+
+D/CompatibilityChangeReporter( 8129): Compat change id reported: 171228096; UID 10172; state: ENABLED
+
+I/ReactNative( 8129): [GESTURE HANDLER] Initialize gesture handler for root view com.facebook.react.runtime.ReactSurfaceView{28f7a55 V.E...... .......D 0,0-1080,2400 #1}
+
+D/EGL_emulation( 8129): app_time_stats: avg=30.03ms min=1.45ms max=695.37ms count=49
+
+D/EGL_emulation( 8129): app_time_stats: avg=4.38ms min=1.29ms max=23.98ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=4.50ms min=1.22ms max=11.83ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=8.89ms min=1.22ms max=23.39ms count=60
+
+D/ProfileInstaller( 8129): Installing profile for com.pdfpowertools.app
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.66ms min=11.33ms max=21.49ms count=61
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.85ms min=6.20ms max=32.78ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.71ms min=11.80ms max=21.69ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.93ms min=11.36ms max=32.65ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.87ms min=12.59ms max=32.78ms count=61
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.71ms min=9.90ms max=24.81ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.90ms min=11.04ms max=32.47ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.57ms min=11.27ms max=25.09ms count=61
+
+D/EGL_emulation( 8129): app_time_stats: avg=17.02ms min=11.61ms max=31.83ms count=59
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.49ms min=12.35ms max=20.88ms count=61
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.90ms min=10.76ms max=32.62ms count=59
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.63ms min=10.90ms max=21.07ms count=61
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.92ms min=11.16ms max=32.65ms count=59
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.84ms min=12.75ms max=31.98ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.68ms min=10.79ms max=22.42ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.89ms min=12.41ms max=32.51ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.75ms min=10.22ms max=22.60ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.86ms min=11.70ms max=32.48ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.66ms min=12.21ms max=22.84ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.94ms min=12.05ms max=32.07ms count=59
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.71ms min=8.80ms max=25.85ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.92ms min=13.59ms max=32.54ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.79ms min=11.40ms max=32.52ms count=61
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.75ms min=11.27ms max=22.49ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.85ms min=10.98ms max=32.45ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.63ms min=11.21ms max=25.09ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.93ms min=12.95ms max=32.62ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.77ms min=8.56ms max=25.23ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.86ms min=9.96ms max=32.55ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.67ms min=10.86ms max=23.13ms count=61
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.99ms min=13.09ms max=32.44ms count=59
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.83ms min=9.66ms max=32.22ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.73ms min=11.75ms max=22.27ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.85ms min=12.71ms max=32.05ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.77ms min=9.69ms max=24.80ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.83ms min=11.43ms max=31.93ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.69ms min=11.13ms max=24.88ms count=61
+
+D/EGL_emulation( 8129): app_time_stats: avg=17.00ms min=12.32ms max=31.71ms count=59
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.59ms min=6.39ms max=28.87ms count=61
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.94ms min=9.43ms max=31.99ms count=59
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.78ms min=11.88ms max=31.00ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.78ms min=7.20ms max=26.29ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=8.91ms min=1.15ms max=25.41ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=15.80ms min=1.34ms max=169.75ms count=52
+
+D/EGL_emulation( 8129): app_time_stats: avg=8.54ms min=1.18ms max=24.91ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=14.40ms min=2.29ms max=29.18ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=11.75ms min=1.38ms max=22.79ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=7.12ms min=1.09ms max=22.48ms count=61
+
+D/EGL_emulation( 8129): app_time_stats: avg=14.35ms min=1.48ms max=21.19ms count=59
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.73ms min=10.98ms max=31.66ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.72ms min=9.40ms max=22.54ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.83ms min=10.79ms max=31.98ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.82ms min=12.36ms max=22.66ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.73ms min=8.85ms max=31.88ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.50ms min=8.36ms max=24.77ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=16.93ms min=9.29ms max=31.63ms count=60
+
+D/EGL_emulation( 8129): app_time_stats: avg=17.32ms min=2.81ms max=51.37ms count=54
+
+D/EGL_emulation( 8129): app_time_stats: avg=8.26ms min=1.75ms max=23.72ms count=59
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onUserLeaveHint(activity)
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onHostPause(activity)
+
+W/unknown:BridgelessReact( 8129): ReactContext.onHostPause()
+
+D/CompatibilityChangeReporter( 8129): Compat change id reported: 78294732; UID 10172; state: ENABLED
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onHostResume(activity)
+
+W/unknown:BridgelessReact( 8129): ReactContext.onHostResume()
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/[RNScreens]( 8129): backTitle prop is not available on Android
+
+W/[RNScreens]( 8129): backTitleFontFamily prop is not available on Android
+
+W/[RNScreens]( 8129): disableBackButtonMenu prop is not available on Android
+
+W/[RNScreens]( 8129): backTitleVisible prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleHideShadow prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleFontWeight prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleFontFamily prop is not available on Android
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+I/MuPDFBridge( 8129): getPageCount: /data/user/0/com.pdfpowertools.app/cache/DocumentPicker/55a6a787-f63a-40b5-bfd8-986a38efc34b.pdf
+
+W/libmupdf( 8129): premature end of data in flate filter
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+I/MuPDFBridge( 8129): getPageCount: /data/user/0/com.pdfpowertools.app/cache/DocumentPicker/55a6a787-f63a-40b5-bfd8-986a38efc34b.pdf
+
+W/libmupdf( 8129): premature end of data in flate filter
+
+I/MuPDFBridge( 8129): batchRenderPages: /data/user/0/com.pdfpowertools.app/cache/DocumentPicker/55a6a787-f63a-40b5-bfd8-986a38efc34b.pdf → /data/user/0/com.pdfpowertools.app/files/PDFPowerTools/render_cache_1774619366824 (format=png, quality=85)
+
+W/libmupdf( 8129): premature end of data in flate filter
+
+I/MuPDFBridge( 8129): batchRenderPages: 83 pages found
+
+D/EGL_emulation( 8129): app_time_stats: avg=42.29ms min=1.91ms max=1098.71ms count=31
+
+D/EGL_emulation( 8129): app_time_stats: avg=311.86ms min=11.19ms max=5034.58ms count=17
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+D/EGL_emulation( 8129): app_time_stats: avg=125.71ms min=11.12ms max=1816.70ms count=20
+
+W/OnBackInvokedCallback( 8129): OnBackInvokedCallback is not enabled for the application.
+
+W/OnBackInvokedCallback( 8129): Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/Parcel  ( 8129): Expecting binder but got null!
+
+D/EGL_emulation( 8129): app_time_stats: avg=204.59ms min=14.19ms max=4521.00ms count=26
+
+W/[RNScreens]( 8129): backTitle prop is not available on Android
+
+W/[RNScreens]( 8129): backTitleFontFamily prop is not available on Android
+
+W/[RNScreens]( 8129): disableBackButtonMenu prop is not available on Android
+
+W/[RNScreens]( 8129): backTitleVisible prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleHideShadow prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleFontWeight prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleFontFamily prop is not available on Android
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+D/EGL_emulation( 8129): app_time_stats: avg=4123.20ms min=4123.20ms max=4123.20ms count=1
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+D/EGL_emulation( 8129): app_time_stats: avg=170.54ms min=1.43ms max=5110.03ms count=31
+
+D/EGL_emulation( 8129): app_time_stats: avg=2157.10ms min=2157.10ms max=2157.10ms count=1
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+I/QPDFBridge( 8129): Executing QPDF Split
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+I/ReactNativeJS( 8129): Temporary files cleanup completed successfully.
+
+D/EGL_emulation( 8129): app_time_stats: avg=183.67ms min=1.51ms max=2464.06ms count=14
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/[RNScreens]( 8129): backTitle prop is not available on Android
+
+W/[RNScreens]( 8129): backTitleFontFamily prop is not available on Android
+
+W/[RNScreens]( 8129): disableBackButtonMenu prop is not available on Android
+
+W/[RNScreens]( 8129): backTitleVisible prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleHideShadow prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleFontWeight prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleFontFamily prop is not available on Android
+
+D/EGL_emulation( 8129): app_time_stats: avg=53.06ms min=1.71ms max=1100.76ms count=34
+
+D/EGL_emulation( 8129): app_time_stats: avg=61.19ms min=13.76ms max=776.04ms count=17
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/fpowertools.app( 8129): Cleared Reference was only reachable from finalizer (only reported once)
+
+I/fpowertools.app( 8129): NativeAlloc concurrent copying GC freed 139933(4538KB) AllocSpace objects, 2(40KB) LOS objects, 49% free, 10MB/21MB, paused 7.045ms,9us total 82.560ms
+
+D/EGL_emulation( 8129): app_time_stats: avg=15.11ms min=1.46ms max=76.62ms count=45
+
+D/EGL_emulation( 8129): app_time_stats: avg=95.82ms min=62.40ms max=478.73ms count=15
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/OnBackInvokedCallback( 8129): OnBackInvokedCallback is not enabled for the application.
+
+W/OnBackInvokedCallback( 8129): Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+
+W/Parcel  ( 8129): Expecting binder but got null!
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/[RNScreens]( 8129): backTitle prop is not available on Android
+
+W/[RNScreens]( 8129): backTitleFontFamily prop is not available on Android
+
+W/[RNScreens]( 8129): disableBackButtonMenu prop is not available on Android
+
+W/[RNScreens]( 8129): backTitleVisible prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleHideShadow prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleFontWeight prop is not available on Android
+
+W/[RNScreens]( 8129): largeTitleFontFamily prop is not available on Android
+
+D/EGL_emulation( 8129): app_time_stats: avg=527.63ms min=82.85ms max=2168.25ms count=5
+
+D/EGL_emulation( 8129): app_time_stats: avg=190.35ms min=1.19ms max=1519.16ms count=11
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+D/EGL_emulation( 8129): app_time_stats: avg=80.68ms min=10.76ms max=1089.66ms count=17
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+I/QPDFBridge( 8129): Executing QPDF Split
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+E/QPDFBridge( 8129): QPDF Split Error: /data/user/0/com.pdfpowertools.app/files/PDFPowerTools/split_output_1774619393424: read 1024 bytes
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+I/ReactNativeJS( 8129): Temporary files cleanup completed successfully.
+
+D/EGL_emulation( 8129): app_time_stats: avg=1587.42ms min=1587.42ms max=1587.42ms count=1
+
+D/EGL_emulation( 8129): app_time_stats: avg=18241.43ms min=18241.43ms max=18241.43ms count=1
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+D/EGL_emulation( 8129): app_time_stats: avg=338.18ms min=1.54ms max=2666.42ms count=8
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onUserLeaveHint(activity)
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onHostPause(activity)
+
+W/unknown:BridgelessReact( 8129): ReactContext.onHostPause()
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onHostResume(activity)
+
+W/unknown:BridgelessReact( 8129): ReactContext.onHostResume()
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+D/CompatibilityChangeReporter( 8129): Compat change id reported: 163400105; UID 10172; state: ENABLED
+
+I/AssistStructure( 8129): Flattened final assist data: 3812 bytes, containing 1 windows, 22 views
+
+D/EGL_emulation( 8129): app_time_stats: avg=149.85ms min=1.20ms max=2347.42ms count=16
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+I/QPDFBridge( 8129): Executing QPDF Split
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+I/ReactNativeJS( 8129): Temporary files cleanup completed successfully.
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onUserLeaveHint(activity)
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onHostPause(activity)
+
+W/unknown:BridgelessReact( 8129): ReactContext.onHostPause()
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onHostResume(activity)
+
+W/unknown:BridgelessReact( 8129): ReactContext.onHostResume()
+
+D/EGL_emulation( 8129): app_time_stats: avg=838.99ms min=12.85ms max=9876.55ms count=12
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onUserLeaveHint(activity)
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onHostPause(activity)
+
+W/unknown:BridgelessReact( 8129): ReactContext.onHostPause()
+
+W/unknown:BridgelessReact( 8129): ReactHost{0}.onHostResume(activity)
+
+W/unknown:BridgelessReact( 8129): ReactContext.onHostResume()
+
+D/EGL_emulation( 8129): app_time_stats: avg=4883.26ms min=4883.26ms max=4883.26ms count=1
+
+D/EGL_emulation( 8129): app_time_stats: avg=104.12ms min=15.36ms max=1416.98ms count=16
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+W/unknown:ReactNative( 8129): StatusBarModule: Ignored status bar change, current activity is edge-to-edge.
+
+I/fpowertools.app( 8129): NativeAlloc concurrent copying GC freed 110905(2178KB) AllocSpace objects, 5(100KB) LOS objects, 49% free, 10MB/21MB, paused 37us,57us total 125.513ms

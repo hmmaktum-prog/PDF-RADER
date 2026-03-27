@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   ScrollView,
   StatusBar,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -119,9 +120,18 @@ export default function ToolShell({
     }
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (resultPath) setSharedFilePath(resultPath);
+    if (resultPath) {
+      // Only share single PDF files downstream — directories (e.g. split output)
+      // must not be passed as the input path for the next tool because QPDF/MuPDF
+      // cannot open a directory as a PDF and will crash with a read error.
+      const isDirectory = resultPath.endsWith('/') ||
+        (!resultPath.includes('.', resultPath.lastIndexOf('/') + 1));
+      if (!isDirectory) {
+        setSharedFilePath(resultPath);
+      }
+    }
     setStatus('idle');
     setProgress(0);
     setProgressLabel('');
@@ -159,7 +169,11 @@ export default function ToolShell({
 
   return (
     <View style={[styles.root, { backgroundColor: bg }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        translucent
+        backgroundColor={Platform.Version >= 35 ? undefined : 'transparent'}
+      />
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: cardBg, borderBottomColor: border, paddingTop: headerPaddingTop }]}>
