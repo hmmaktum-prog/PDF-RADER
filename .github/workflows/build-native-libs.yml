@@ -102,7 +102,6 @@ jobs:
         if: steps.check.outputs.skip != 'true'
         run: |
           mkdir -p .native_src
-          NDK="$HOME/Android/Sdk/ndk/25.2.9519653"
 
           # libjpeg-turbo
           if [[ ! -d ".native_src/libjpeg-turbo/.git" ]]; then
@@ -207,6 +206,10 @@ jobs:
 
             mkdir -p "$THIRD/qpdf/libs/$ABI"
             QPDF_SO=$(find "$SRC/qpdf-build-$ABI" -name 'libqpdf.so' | head -1)
+            if [[ -z "$QPDF_SO" ]]; then
+              echo "ERROR: libqpdf.so build হয়নি ($ABI) — cmake output দেখুন।" >&2
+              exit 1
+            fi
             cp "$QPDF_SO" "$THIRD/qpdf/libs/$ABI/"
             cp "$SRC/jpeg-install-$ABI/lib/libjpeg.so" "$THIRD/qpdf/libs/$ABI/" 2>/dev/null || true
             echo "✓ QPDF/$ABI done: $(ls -lh $THIRD/qpdf/libs/$ABI/)"
@@ -360,7 +363,7 @@ jobs:
           THIRD="mobile/native/third_party"
           mkdir -p "$THIRD/qpdf/include" "$THIRD/mupdf/include"
           [[ -d "$SRC/qpdf/include" ]] && \
-            cp -rn "$SRC/qpdf/include/." "$THIRD/qpdf/include/" 2>/dev/null || true
+            cp -r "$SRC/qpdf/include/." "$THIRD/qpdf/include/" 2>/dev/null || true
           [[ -d "$SRC/mupdf-1.27.2-source/include" ]] && \
             cp -r "$SRC/mupdf-1.27.2-source/include/." \
             "$THIRD/mupdf/include/" 2>/dev/null || true
