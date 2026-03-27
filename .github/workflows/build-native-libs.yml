@@ -66,7 +66,7 @@ jobs:
 
       - name: Pre-create source directories
         if: steps.check.outputs.skip != 'true'
-        run: mkdir -p .native_src/libjpeg-turbo .native_src/qpdf .native_src/mupdf-1.28.0-source
+        run: mkdir -p .native_src/libjpeg-turbo .native_src/qpdf .native_src/mupdf-1.27.2-source
 
       - name: Cache sources
         if: steps.check.outputs.skip != 'true'
@@ -75,8 +75,8 @@ jobs:
           path: |
             .native_src/libjpeg-turbo
             .native_src/qpdf
-            .native_src/mupdf-1.28.0-source
-          key: native-src-all-v4
+            .native_src/mupdf-1.27.2-source
+          key: native-src-all-v5
           restore-keys: |
             native-src-all-
 
@@ -116,16 +116,16 @@ jobs:
               .native_src/qpdf
           fi
 
-          # MuPDF 1.28.0 (Makefile-based, submodule সহ)
-          if [[ ! -d ".native_src/mupdf-1.28.0-source/.git" ]]; then
-            [[ -d ".native_src/mupdf-1.28.0-source" ]] && rm -rf ".native_src/mupdf-1.28.0-source"
-            git clone --depth 1 --branch 1.28.0 \
+          # MuPDF 1.27.2 (Makefile-based, submodule সহ)
+          if [[ ! -d ".native_src/mupdf-1.27.2-source/.git" ]]; then
+            [[ -d ".native_src/mupdf-1.27.2-source" ]] && rm -rf ".native_src/mupdf-1.27.2-source"
+            git clone --depth 1 --branch 1.27.2 \
               --recurse-submodules --shallow-submodules \
               https://github.com/ArtifexSoftware/mupdf.git \
-              .native_src/mupdf-1.28.0-source
+              .native_src/mupdf-1.27.2-source
           fi
           echo "✓ Sources ready"
-          ls .native_src/mupdf-1.28.0-source/ | head -8
+          ls .native_src/mupdf-1.27.2-source/ | head -8
 
       - name: Build QPDF (arm64-v8a + x86_64)
         if: steps.check.outputs.skip != 'true'
@@ -221,10 +221,10 @@ jobs:
           CLANG_DIR="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
           SYSROOT="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
           TOOLCHAIN="$NDK/build/cmake/android.toolchain.cmake"
-          MUPDF_SRC=".native_src/mupdf-1.28.0-source"
+          MUPDF_SRC=".native_src/mupdf-1.27.2-source"
           THIRD="mobile/native/third_party"
 
-          # ── Check if MuPDF has CMakeLists.txt (1.28.0+ does) ──────────────
+          # ── Check if MuPDF has CMakeLists.txt ─────────────────────────────
           if [[ -f "$MUPDF_SRC/CMakeLists.txt" ]]; then
             echo "→ MuPDF: Using CMake build (modern)"
             USE_CMAKE=1
@@ -361,8 +361,8 @@ jobs:
           mkdir -p "$THIRD/qpdf/include" "$THIRD/mupdf/include"
           [[ -d "$SRC/qpdf/include" ]] && \
             cp -rn "$SRC/qpdf/include/." "$THIRD/qpdf/include/" 2>/dev/null || true
-          [[ -d "$SRC/mupdf-1.28.0-source/include" ]] && \
-            cp -r "$SRC/mupdf-1.28.0-source/include/." \
+          [[ -d "$SRC/mupdf-1.27.2-source/include" ]] && \
+            cp -r "$SRC/mupdf-1.27.2-source/include/." \
             "$THIRD/mupdf/include/" 2>/dev/null || true
           echo "✓ Headers copied"
 
