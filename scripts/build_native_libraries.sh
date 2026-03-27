@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # build_native_libraries.sh
-# GitHub Actions-এ চলে। libjpeg-turbo → QPDF → MuPDF 1.28.0 build করে।
+# GitHub Actions-এ চলে। libjpeg-turbo → QPDF → MuPDF 1.27.2 build করে।
 # Output: mobile/native/third_party/{qpdf,mupdf}/libs/{arm64-v8a,x86_64}/
 
 WORKSPACE="$(pwd)"
@@ -14,7 +14,7 @@ TOOLCHAIN="$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake"
 SRC_ROOT="$WORKSPACE/.native_src"
 THIRD_PARTY="$WORKSPACE/mobile/native/third_party"
 
-MUPDF_VERSION="1.28.0"
+MUPDF_VERSION="1.27.2"
 MUPDF_SRC="$SRC_ROOT/mupdf-${MUPDF_VERSION}-source"
 
 echo "=== PDF Power Tools Native Library Builder ==="
