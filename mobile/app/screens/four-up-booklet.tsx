@@ -6,6 +6,7 @@ import { fourUpBooklet } from '../utils/nativeModules';
 import { getFourUpBookletChunks } from '../utils/fourUpBooklet';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 const ORIENTATIONS = [
   { id: 'landscape', label: '🌄 Landscape', hint: 'Wider pages, horizontal layout' },
@@ -14,8 +15,12 @@ const ORIENTATIONS = [
 
 export default function FourUpBookletScreen() {
   const { isDark } = useAppTheme();
+  
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [orientation, setOrientation] = useState('landscape');
 
   const textColor = isDark ? '#fff' : '#000';

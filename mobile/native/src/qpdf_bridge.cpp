@@ -169,8 +169,49 @@ Java_com_pdfpowertools_native_QPDFBridge_mergePdfs(
             }
         }
         QPDFWriter w(merged, out.c_str());
-        w.setStaticID(true); // For reproducibility
+        w.setStaticID(true);
         w.write();
+
+        if (invertColors) {
+            // If invertColors is requested, we use the mupdf logic to process the merged file
+            // Note: Since we can't easily call JNI from here, we'd ideally have a helper.
+            // But for simplicity in this bridge, we'll assume the user can run the Invert tool separately
+            // OR we implement a quick mupdf pass here.
+#ifdef HAS_MUPDF
+            LOGI("Applying Invert Colors pass to merged PDF");
+            std::string tempOut = out + ".tmp.pdf";
+            // We use a simplified version of the invert logic
+            fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+            if (ctx) {
+                fz_try(ctx) {
+                    fz_register_document_handlers(ctx);
+                    fz_document* doc = fz_open_document(ctx, out.c_str());
+                    fz_document_writer* mw = fz_new_pdf_writer(ctx, tempOut.c_str(), nullptr);
+                    int n = fz_count_pages(ctx, doc);
+                    for (int i = 0; i < n; ++i) {
+                        fz_page* page = fz_load_page(ctx, doc, i);
+                        fz_rect rect = fz_bound_page(ctx, page);
+                        fz_pixmap* pix = fz_new_pixmap_from_page(ctx, page, fz_scale(2, 2), fz_device_rgb(ctx), 0);
+                        unsigned char* s = fz_pixmap_samples(ctx, pix);
+                        int len = fz_pixmap_width(ctx, pix) * fz_pixmap_height(ctx, pix) * fz_pixmap_components(ctx, pix);
+                        for (int j = 0; j < len; j += fz_pixmap_components(ctx, pix)) {
+                            s[j] = 255 - s[j]; s[j+1] = 255 - s[j+1]; s[j+2] = 255 - s[j+2];
+                        }
+                        fz_image* img = fz_new_image_from_pixmap(ctx, pix, nullptr);
+                        fz_device* dev = fz_begin_page(ctx, mw, rect);
+                        fz_matrix m = fz_scale(rect.x1 - rect.x0, rect.y1 - rect.y0);
+                        m.e += rect.x0; m.f += rect.y0;
+                        fz_fill_image(ctx, dev, img, m, 1.0f, fz_default_color_params);
+                        fz_end_page(ctx, mw);
+                        fz_drop_image(ctx, img); fz_drop_pixmap(ctx, pix); fz_drop_page(ctx, page);
+                    }
+                    fz_close_document_writer(ctx, mw); fz_drop_document_writer(ctx, mw); fz_drop_document(ctx, doc);
+                    fz_drop_context(ctx);
+                    fs::rename(tempOut, out);
+                } fz_catch(ctx) { fz_drop_context(ctx); }
+            }
+#endif
+        }
         return env->NewStringUTF(out.c_str());
     } catch (std::exception& e) {
         LOGE("QPDF Merge Error: %s", e.what());
@@ -202,8 +243,20 @@ Java_com_pdfpowertools_native_QPDFBridge_compressPdf(
         QPDF pdf;
         pdf.processFile(in.c_str());
         QPDFWriter w(pdf, out.c_str());
-        w.setStreamDataMode(qpdf_s_compress);
-        w.setObjectStreamMode(qpdf_o_generate);
+        
+        if (lvl == "Low") {
+            w.setStreamDataMode(qpdf_s_uncompress);
+            w.setObjectStreamMode(qpdf_o_disable);
+        } else if (lvl == "High") {
+            w.setStreamDataMode(qpdf_s_compress);
+            w.setObjectStreamMode(qpdf_o_generate);
+            w.setCompressStreams(true);
+        } else {
+            // Medium or default
+            w.setStreamDataMode(qpdf_s_compress);
+            w.setObjectStreamMode(qpdf_o_generate);
+        }
+        
         w.write();
         return JNI_TRUE;
     } catch (std::exception& e) {
@@ -235,16 +288,79 @@ Java_com_pdfpowertools_native_QPDFBridge_splitPdf(
     try {
         QPDF pdf;
         pdf.processFile(in.c_str());
-        std::vector<QPDFPageObjectHelper> pages = QPDFPageDocumentHelper(pdf).getAllPages();
+        QPDFPageDocumentHelper ph(pdf);
+        std::vector<QPDFPageObjectHelper> pages = ph.getAllPages();
         fs::create_directories(outDir);
-        // Simple split: each page to a new file (can be improved with range parsing)
-        for (size_t i = 0; i < pages.size(); ++i) {
-            QPDF single;
-            single.emptyPDF();
-            QPDFPageDocumentHelper(single).addPage(pages[i], false);
-            std::string outPath = outDir + "/part_" + std::to_string(i + 1) + ".pdf";
-            QPDFWriter w(single, outPath.c_str());
-            w.write();
+        
+        if (rng.find("split_count:") == 0) {
+            int count = std::stoi(rng.substr(12));
+            if (count > 0 && count <= pages.size()) {
+                int perFile = pages.size() / count;
+                int extra = pages.size() % count;
+                int pageIdx = 0;
+                for (int i = 0; i < count; ++i) {
+                    QPDF single; single.emptyPDF();
+                    int taking = perFile + (i < extra ? 1 : 0);
+                    for (int j = 0; j < taking && pageIdx < pages.size(); ++j) {
+                        QPDFPageDocumentHelper(single).addPage(pages[pageIdx++], false);
+                    }
+                    std::string outPath = outDir + "/part_" + std::to_string(i + 1) + ".pdf";
+                    QPDFWriter w(single, outPath.c_str());
+                    w.write();
+                }
+            }
+        } else if (rng.find("every_n:") == 0) {
+            int n = std::stoi(rng.substr(8));
+            if (n > 0) {
+                int fileIdx = 1;
+                for (size_t i = 0; i < pages.size(); i += n) {
+                    QPDF single; single.emptyPDF();
+                    for (size_t j = i; j < i + n && j < pages.size(); ++j) {
+                        QPDFPageDocumentHelper(single).addPage(pages[j], false);
+                    }
+                    std::string outPath = outDir + "/part_" + std::to_string(fileIdx++) + ".pdf";
+                    QPDFWriter w(single, outPath.c_str());
+                    w.write();
+                }
+            }
+        } else {
+            auto parts = splitCsv(rng);
+            if (parts.empty() || rng == "all") {
+                for (size_t i = 0; i < pages.size(); ++i) {
+                    QPDF single; single.emptyPDF();
+                    QPDFPageDocumentHelper(single).addPage(pages[i], false);
+                    std::string outPath = outDir + "/part_" + std::to_string(i + 1) + ".pdf";
+                    QPDFWriter w(single, outPath.c_str());
+                    w.write();
+                }
+            } else {
+                int fileIdx = 1;
+                for (const auto& p : parts) {
+                    QPDF single; single.emptyPDF();
+                    size_t dash = p.find('-');
+                    if (dash != std::string::npos) {
+                        try {
+                            int start = std::stoi(p.substr(0, dash));
+                            int end = std::stoi(p.substr(dash + 1));
+                            start = std::max(1, start);
+                            end = std::min((int)pages.size(), end);
+                            for (int i = start; i <= end; ++i) {
+                                QPDFPageDocumentHelper(single).addPage(pages[i - 1], false);
+                            }
+                        } catch (...) {}
+                    } else {
+                        try {
+                            int idx = std::stoi(p);
+                            if (idx >= 1 && idx <= pages.size()) {
+                                QPDFPageDocumentHelper(single).addPage(pages[idx - 1], false);
+                            }
+                        } catch (...) {}
+                    }
+                    std::string outPath = outDir + "/part_" + std::to_string(fileIdx++) + ".pdf";
+                    QPDFWriter w(single, outPath.c_str());
+                    w.write();
+                }
+            }
         }
         return JNI_TRUE;
     } catch (std::exception& e) {
@@ -282,8 +398,20 @@ Java_com_pdfpowertools_native_QPDFBridge_rotatePdf(
         QPDF pdf;
         pdf.processFile(in.c_str());
         std::vector<QPDFPageObjectHelper> all_pages = QPDFPageDocumentHelper(pdf).getAllPages();
-        for (auto& page : all_pages) {
-            page.rotatePage(angle, true);
+        if (pgs == "all" || pgs.empty()) {
+            for (auto& page : all_pages) {
+                page.rotatePage(angle, true);
+            }
+        } else {
+            auto parts = splitCsv(pgs);
+            for (const auto& p : parts) {
+                try {
+                    int idx = std::stoi(p);
+                    if (idx >= 1 && idx <= all_pages.size()) {
+                        all_pages[idx - 1].rotatePage(angle, true);
+                    }
+                } catch(...) {}
+            }
         }
         QPDFWriter w(pdf, out.c_str());
         w.write();
@@ -769,40 +897,69 @@ Java_com_pdfpowertools_native_QPDFBridge_imagesToPdf(
     const std::string images = jstringToStd(env, imagePaths);
     const std::string out = normalizePath(jstringToStd(env, outputPath));
 
+    std::string pSize = jstringToStd(env, pageSize);
+    std::string orient = jstringToStd(env, orientation);
+    auto rList = splitCsv(jstringToStd(env, rotations));
+    
 #ifdef HAS_MUPDF
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
     if (!ctx) return JNI_FALSE;
     bool success = false;
     fz_try(ctx) {
         fz_register_document_handlers(ctx);
+        float base_pw = 595.0f; float base_ph = 842.0f;
+        if (pSize == "Letter") { base_pw = 612.0f; base_ph = 792.0f; }
+        if (orient == "landscape") { std::swap(base_pw, base_ph); }
+        
         fz_document_writer* w = fz_new_pdf_writer(ctx, out.c_str(), nullptr);
         auto paths = splitCsv(images);
         
-        for (const auto& imgPath : paths) {
-            fz_image* img = fz_new_image_from_file(ctx, imgPath.c_str());
+        for (size_t i = 0; i < paths.size(); ++i) {
+            fz_image* img = fz_new_image_from_file(ctx, paths[i].c_str());
             float w_px = img->w;
             float h_px = img->h;
+            int rot = (i < rList.size()) ? std::stoi(rList[i]) : 0;
             
-            float page_w = 595.0f;
-            float page_h = 842.0f;
+            float page_w = base_pw;
+            float page_h = base_ph;
+            if (pSize == "Fit") {
+                if (rot == 90 || rot == 270) {
+                    page_w = h_px + marginPts * 2;
+                    page_h = w_px + marginPts * 2;
+                } else {
+                    page_w = w_px + marginPts * 2;
+                    page_h = h_px + marginPts * 2;
+                }
+            }
             
             fz_rect rect = {0, 0, page_w, page_h};
             fz_device* dev = fz_begin_page(ctx, w, rect);
             
-            float scaleX = page_w / w_px;
-            float scaleY = page_h / h_px;
+            float bw = w_px; float bh = h_px;
+            if (rot == 90 || rot == 270) { std::swap(bw, bh); }
+            
+            float avail_w = page_w - marginPts * 2;
+            float avail_h = page_h - marginPts * 2;
+            float scaleX = avail_w / bw;
+            float scaleY = avail_h / bh;
             float scale = std::min(scaleX, scaleY);
             
-            float finalW = w_px * scale;
-            float finalH = h_px * scale;
-            float tx = (page_w - finalW) / 2.0f;
-            float ty = (page_h - finalH) / 2.0f;
+            float finalW = bw * scale;
+            float finalH = bh * scale;
+            float tx = marginPts + (avail_w - finalW) / 2.0f;
+            float ty = marginPts + (avail_h - finalH) / 2.0f;
             
-            fz_matrix img_ctm = fz_scale(finalW, finalH);
-            img_ctm.e += tx;
-            img_ctm.f += ty;
+            fz_matrix m = fz_scale(w_px * scale, h_px * scale);
+            if (rot == 90) {
+                m = fz_concat(m, fz_make_matrix(0, 1, -1, 0, finalH, 0));
+            } else if (rot == 180) {
+                m = fz_concat(m, fz_make_matrix(-1, 0, 0, -1, finalW, finalH));
+            } else if (rot == 270) {
+                m = fz_concat(m, fz_make_matrix(0, -1, 1, 0, 0, finalW));
+            }
+            m = fz_concat(m, fz_translate(tx, ty));
             
-            fz_fill_image(ctx, dev, img, img_ctm, 1.0f, fz_default_color_params);
+            fz_fill_image(ctx, dev, img, m, 1.0f, fz_default_color_params);
             
             fz_end_page(ctx, w);
             fz_drop_image(ctx, img);

@@ -2,7 +2,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 export function getOutputPath(filename: string): string {
   const base = FileSystem.documentDirectory ?? 'file:///';
-  return base + 'PDFPowerTools/' + filename;
+  const dotIdx = filename.lastIndexOf('.');
+  const name = dotIdx !== -1 ? filename.substring(0, dotIdx) : filename;
+  const ext = dotIdx !== -1 ? filename.substring(dotIdx) : '';
+  const timestamp = new Date().getTime();
+  return `${base}PDFPowerTools/${name}_${timestamp}${ext}`;
 }
 
 export async function ensureOutputDir(): Promise<void> {

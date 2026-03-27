@@ -8,6 +8,7 @@ import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { generateDocxAsBase64 } from '../utils/docxGenerator';
 import * as FileSystem from 'expo-file-system/legacy';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 const LANGUAGES = [
   { id: 'ben', label: 'বাংলা', flag: '🇧🇩' },
@@ -24,8 +25,12 @@ const OUTPUT_FORMATS = [
 
 export default function OcrScreen() {
   const { isDark } = useAppTheme();
+  
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [language, setLanguage] = useState('ben');
   const [outputFormat, setOutputFormat] = useState('docx');
   const [useGemini, setUseGemini] = useState(true);

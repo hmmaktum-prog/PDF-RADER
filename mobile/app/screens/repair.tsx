@@ -5,6 +5,7 @@ import { useAppTheme } from '../context/ThemeContext';
 import { repairPdf } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 const REPAIR_FEATURES = [
   { icon: '🔧', label: 'Fix cross-reference table', desc: 'Rebuilt with QPDF linearization' },
@@ -15,8 +16,12 @@ const REPAIR_FEATURES = [
 
 export default function RepairScreen() {
   const { isDark } = useAppTheme();
+  
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [password, setPassword] = useState('');
   const [isEncrypted, setIsEncrypted] = useState(false);
 

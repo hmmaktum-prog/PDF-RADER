@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { whiteningPdf, enhanceContrastPdf, grayscalePdf, compressPdf } from '../utils/nativeModules';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 const DEFAULT_STEPS = [
   { id: 'whiten', icon: '🧹', label: 'Whiten Background', desc: 'Remove yellow tint (MuPDF)' },
@@ -20,9 +21,12 @@ const DEFAULT_STEPS = [
 
 export default function AutoProcessScreen() {
   const { isDark } = useAppTheme();
+  
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
-  
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [steps, setSteps] = useState(DEFAULT_STEPS);
   const [enabled, setEnabled] = useState<Record<string, boolean>>({ whiten: true, contrast: true, grayscale: false, compress: true });
 

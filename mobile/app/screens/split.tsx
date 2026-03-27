@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,24 +7,30 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Switch,
 } from 'react-native';
 import ToolShell from '../components/ToolShell';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { useAppTheme } from '../context/ThemeContext';
 import { splitPdf } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 type SplitMode = 'range' | 'count' | 'every';
 
 export default function SplitScreen() {
   const { isDark } = useAppTheme();
+  
+  const [selectedFile, setSelectedFile] = useState('');
+  const [selectedFileName, setSelectedFileName] = useState('');
+  
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [mode, setMode] = useState<SplitMode>('range');
   const [rangeInput, setRangeInput] = useState('1-3, 4-6, 7-10');
   const [splitCount, setSplitCount] = useState('2');
   const [everyN, setEveryN] = useState('5');
   const [outputZip, setOutputZip] = useState(true);
-  const [selectedFile, setSelectedFile] = useState('');
-  const [selectedFileName, setSelectedFileName] = useState('');
 
   const textColor = isDark ? '#fff' : '#000';
   const cardBg = isDark ? '#1e1e1e' : '#f0f0f0';
@@ -158,13 +164,16 @@ export default function SplitScreen() {
         onPress={() => setOutputZip(!outputZip)}
         testID="button-toggle-zip"
       >
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={[styles.toggleLabel, { color: textColor }]}>📦 Output as ZIP</Text>
           <Text style={[styles.hint, { color: muted }]}>Bundle all split files into a single ZIP</Text>
         </View>
-        <View style={[styles.toggleOuter, { backgroundColor: outputZip ? accent : isDark ? '#555' : '#ccc' }]}>
-          <View style={[styles.toggleThumb, { marginLeft: outputZip ? 22 : 2 }]} />
-        </View>
+        <Switch
+          value={outputZip}
+          onValueChange={setOutputZip}
+          trackColor={{ false: '#767577', true: accent }}
+          thumbColor={isDark ? '#f4f3f4' : '#fff'}
+        />
       </TouchableOpacity>
     </ToolShell>
   );

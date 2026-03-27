@@ -5,12 +5,17 @@ import { useAppTheme } from '../context/ThemeContext';
 import { enhanceContrastPdf } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 export default function EnhanceContrastScreen() {
   const { isDark } = useAppTheme();
-  const [level, setLevel] = useState(3);
+  
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
+  const [level, setLevel] = useState(3);
 
   const textColor = isDark ? '#fff' : '#000';
   const cardBg = isDark ? '#1e1e1e' : '#f0f0f0';

@@ -97,8 +97,11 @@ static int countPdfPagesHeuristic(const std::string& inputPath) {
     size_t pos = 0;
     const std::string marker = "/Type /Page";
     while ((pos = text.find(marker, pos)) != std::string::npos) {
-        ++count;
         pos += marker.size();
+        if (pos < text.size() && text[pos] == 's') {
+            continue; // Ignore "/Type /Pages"
+        }
+        ++count;
     }
     return count > 0 ? static_cast<int>(count) : 1;
 }

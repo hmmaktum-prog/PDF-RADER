@@ -5,6 +5,7 @@ import { useAppTheme } from '../context/ThemeContext';
 import { nupLayout } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 const STANDARD_LAYOUTS = [
   { id: '2x1', label: '2-Up', cols: 2, rows: 1 },
@@ -22,13 +23,17 @@ const SEQUENCES = [
 
 export default function NupScreen() {
   const { isDark } = useAppTheme();
-  const [isCustom, setIsCustom] = useState(false);
+  
+  const [selectedFile, setSelectedFile] = useState('');
+  const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [layout, setLayout] = useState(STANDARD_LAYOUTS[0]);
   const [customCols, setCustomCols] = useState('2');
   const [customRows, setCustomRows] = useState('2');
   const [sequence, setSequence] = useState('Z');
-  const [selectedFile, setSelectedFile] = useState('');
-  const [selectedFileName, setSelectedFileName] = useState('');
+  const [isCustom, setIsCustom] = useState(false);
 
   const textColor = isDark ? '#fff' : '#000';
   const cardBg = isDark ? '#1e1e1e' : '#f0f0f0';

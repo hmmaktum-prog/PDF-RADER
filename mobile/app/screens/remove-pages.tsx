@@ -5,6 +5,7 @@ import { useAppTheme } from '../context/ThemeContext';
 import { removePages, getPageCount } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 export default function RemovePagesScreen() {
   const { isDark } = useAppTheme();
@@ -20,6 +21,20 @@ export default function RemovePagesScreen() {
 
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
+  useEffect(() => {
+    if (selectedFile) {
+      getPageCount(selectedFile).then(count => {
+        if (count > 0) {
+          setPages(Array.from({ length: count }, (_, i) => i + 1));
+          setSelected(new Set());
+          setLastSelected(null);
+        }
+      }).catch(err => Alert.alert('Error', 'Failed to load page count: ' + err.message));
+    }
+  }, [selectedFile]);
 
   const handlePickFile = async () => {
     try {

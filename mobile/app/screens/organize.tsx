@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput } from 'react-native';
 import ToolShell from '../components/ToolShell';
 import { useAppTheme } from '../context/ThemeContext';
 import { reorderPages, getPageCount } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
@@ -14,7 +15,20 @@ export default function OrganizeScreen() {
   const [pages, setPages] = useState<number[]>([1, 2, 3, 4, 5, 6, 7, 8]);
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [manualPos, setManualPos] = useState('');
+
+  useEffect(() => {
+    if (selectedFile) {
+      getPageCount(selectedFile).then(count => {
+        if (count > 0) {
+          setPages(Array.from({ length: count }, (_, i) => i + 1));
+        }
+      }).catch(err => Alert.alert('Error', 'Failed to load page count: ' + err.message));
+    }
+  }, [selectedFile]);
 
   const handlePickFile = async () => {
     try {

@@ -5,11 +5,16 @@ import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { useAppTheme } from '../context/ThemeContext';
 import { splitPdf } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 export default function SplitByLineScreen() {
   const { isDark } = useAppTheme();
+  
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [axis, setAxis] = useState<'vertical' | 'horizontal'>('vertical');
   const [scope, setScope] = useState<'all' | 'individual'>('all');
   const [ratio, setRatio] = useState('50');

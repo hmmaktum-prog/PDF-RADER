@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import ToolShell from '../components/ToolShell';
 import { useAppTheme } from '../context/ThemeContext';
@@ -7,14 +7,23 @@ import { pickSinglePdf } from '../utils/filePicker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image, ActivityIndicator } from 'react-native';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 export default function GrayscaleScreen() {
   const { isDark } = useAppTheme();
+  
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [preserveQuality, setPreserveQuality] = useState(true);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+
+  useEffect(() => {
+    if (selectedFile) loadPreview();
+  }, [selectedFile]);
 
   const handlePickFile = async () => {
     try {

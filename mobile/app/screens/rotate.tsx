@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, TextInput, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, TextInput, Alert, Switch } from 'react-native';
 import ToolShell from '../components/ToolShell';
 import { useAppTheme } from '../context/ThemeContext';
 import { rotatePdf, renderPageToImage } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Image, ActivityIndicator } from 'react-native';
+import { Image, ActivityIndicator, useEffect } from 'react-native';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 const ANGLES = [
   { deg: 90 as const, label: '↻ 90°', hint: 'Clockwise' },
@@ -16,13 +16,21 @@ const ANGLES = [
 
 export default function RotateScreen() {
   const { isDark } = useAppTheme();
+  
+  const [selectedFile, setSelectedFile] = useState('');
+  const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [angle, setAngle] = useState<90 | 180 | 270>(90);
   const [rotateAll, setRotateAll] = useState(true);
   const [pageRange, setPageRange] = useState('1, 3, 5');
-  const [selectedFile, setSelectedFile] = useState('');
-  const [selectedFileName, setSelectedFileName] = useState('');
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+
+  useEffect(() => {
+    if (selectedFile) loadPreview();
+  }, [selectedFile]);
 
   const handlePickFile = async () => {
     try {
@@ -140,13 +148,16 @@ export default function RotateScreen() {
         onPress={() => setRotateAll(!rotateAll)}
         testID="button-toggle-all-pages"
       >
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={[styles.toggleLabel, { color: textColor }]}>Rotate All Pages</Text>
           <Text style={[styles.hint, { color: muted }]}>Apply rotation to every page</Text>
         </View>
-        <View style={[styles.toggleOuter, { backgroundColor: rotateAll ? accent : isDark ? '#555' : '#ccc' }]}>
-          <View style={[styles.toggleThumb, { marginLeft: rotateAll ? 22 : 2 }]} />
-        </View>
+        <Switch
+          value={rotateAll}
+          onValueChange={setRotateAll}
+          trackColor={{ false: '#767577', true: accent }}
+          thumbColor={isDark ? '#f4f3f4' : '#fff'}
+        />
       </TouchableOpacity>
 
       {!rotateAll && (

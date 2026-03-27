@@ -5,11 +5,15 @@ import { useAppTheme } from '../context/ThemeContext';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { invertColorsPdf } from '../utils/nativeModules';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 export default function InvertScreen() {
   const { isDark } = useAppTheme();
+  
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
 
   const handlePickFile = async () => {
     try {

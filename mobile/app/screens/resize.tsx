@@ -5,6 +5,7 @@ import { useAppTheme } from '../context/ThemeContext';
 import { resizePdf } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 const PAGE_SIZES = [
   { id: 'A4', label: 'A4', w: 595, h: 842, desc: '210×297 mm' },
@@ -16,14 +17,18 @@ const PAGE_SIZES = [
 
 export default function ResizeScreen() {
   const { isDark } = useAppTheme();
+  
+  const [selectedFile, setSelectedFile] = useState('');
+  const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [targetSize, setTargetSize] = useState(PAGE_SIZES[0]);
   const [customW, setCustomW] = useState('595');
   const [customH, setCustomH] = useState('842');
   const [scale, setScale] = useState('100');
   const [alignH, setAlignH] = useState<'left' | 'center' | 'right'>('center');
   const [alignV, setAlignV] = useState<'top' | 'middle' | 'bottom'>('middle');
-  const [selectedFile, setSelectedFile] = useState('');
-  const [selectedFileName, setSelectedFileName] = useState('');
 
   const textColor = isDark ? '#fff' : '#000';
   const cardBg = isDark ? '#1e1e1e' : '#f0f0f0';

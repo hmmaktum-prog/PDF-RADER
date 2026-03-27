@@ -260,36 +260,10 @@ export default function ReaderScreen() {
         <TouchableOpacity onPress={() => setMode('vertical')} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>Vertical</Text></TouchableOpacity>
         <TouchableOpacity onPress={() => setMode('horizontal')} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>Horizontal</Text></TouchableOpacity>
         <TouchableOpacity onPress={() => setNight((v) => !v)} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>{night ? 'Light' : 'Night'}</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowToc((v) => !v)} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>TOC</Text></TouchableOpacity>
         <TouchableOpacity onPress={toggleBookmark} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>{bookmarks.includes(currentPage) ? 'Unmark' : 'Bookmark'}</Text></TouchableOpacity>
       </View>
 
-      <View style={styles.searchBlock}>
-        <View style={styles.searchRow}>
-          <TextInput
-            value={search}
-            onChangeText={runSearch}
-            placeholder="Search demo (page / chapter words)…"
-            style={[styles.searchInput, { backgroundColor: night ? '#222' : '#ffffff', color: text }]}
-            placeholderTextColor={night ? '#666' : '#999'}
-          />
-          <Text style={[styles.metaText, { color: night ? '#aaa' : '#444' }]}>{searchMatches.length} hits</Text>
-        </View>
-        <Text style={[styles.searchHint, { color: night ? '#777' : '#666' }]}>
-          Demo only — not full PDF text search (needs text extraction in a future build).
-        </Text>
-      </View>
 
-      {showToc && (
-        <View style={[styles.toc, { backgroundColor: night ? '#1a1a1a' : '#ffffff' }]}>
-          {tocEntries.map((item) => (
-            <TouchableOpacity key={`${item.title}-${item.page}`} onPress={() => jumpToPage(item.page)} style={styles.tocItem}>
-              <Text style={{ color: text }}>{item.title}</Text>
-              <Text style={{ color: text }}>P {item.page}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
 
       <View style={styles.readerWrap}>
         {mode === 'book' && (
@@ -317,7 +291,7 @@ export default function ReaderScreen() {
               ))}
             </ScrollView>
             <View style={styles.rightNav} {...verticalNavResponder.panHandlers}>
-              <View style={[styles.dragThumb, { top: `${(currentPage / Math.max(1, pageCount)) * 100}%` as any }]} />
+              <View style={[styles.dragThumb, { top: `${((currentPage - 1) / Math.max(1, pageCount - 1)) * 94}%` as any }]} />
             </View>
           </View>
         )}
@@ -340,22 +314,11 @@ export default function ReaderScreen() {
               ))}
             </ScrollView>
             <View style={styles.bottomNav} {...horizontalNavResponder.panHandlers}>
-              <View style={[styles.bottomThumb, { left: `${(currentPage / Math.max(1, pageCount)) * 100}%` as any }]} />
+              <View style={[styles.bottomThumb, { left: `${((currentPage - 1) / Math.max(1, pageCount - 1)) * 94}%` as any }]} />
             </View>
           </View>
         )}
       </View>
-
-      <View style={styles.bottomControls}>
-        <Text style={{ color: text }}>Brightness</Text>
-        <View style={styles.brightnessBar}>
-          <View style={[styles.brightnessFill, { width: `${brightness}%` }]} />
-        </View>
-        <TouchableOpacity onPress={() => setBrightness((v) => Math.min(100, v + 10))} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>+</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setBrightness((v) => Math.max(0, v - 10))} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>-</Text></TouchableOpacity>
-      </View>
-
-      {brightness > 0 && <View pointerEvents="none" style={[styles.brightnessOverlay, { opacity: brightness / 140 }]} />}
 
       <Modal transparent visible={showTools} animationType="slide">
         <View style={styles.modalBackdrop}>

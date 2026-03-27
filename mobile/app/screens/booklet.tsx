@@ -5,6 +5,7 @@ import { useAppTheme } from '../context/ThemeContext';
 import { createBooklet } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 const BINDING_TYPES = [
   { id: 'saddle', label: 'Saddle-Stitch', emoji: '📚', desc: 'Pages folded & stapled (multiple of 4)' },
@@ -16,6 +17,9 @@ export default function BookletScreen() {
   const [binding, setBinding] = useState('saddle');
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [autoPadding, setAutoPadding] = useState(true);
 
   const textColor = isDark ? '#fff' : '#000';

@@ -16,6 +16,8 @@ import * as Haptics from 'expo-haptics';
 import { cleanupTemporaryFiles } from '../utils/cleanup';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import LottieView from 'lottie-react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 
 async function inferShareOptions(path: string): Promise<{ mimeType?: string; dialogTitle: string }> {
   const p = path.toLowerCase();
@@ -74,6 +76,7 @@ export default function ToolShell({
   const [progressLabel, setProgressLabel] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [resultPath, setResultPath] = useState<string | null>(null);
+  const [lottieError, setLottieError] = useState(false);
 
   const bg      = isDark ? '#000000' : '#f2f2f7';
   const cardBg  = isDark ? '#1c1c1e' : '#ffffff';
@@ -82,10 +85,18 @@ export default function ToolShell({
   const barBg   = isDark ? '#2c2c2e' : '#e5e5ea';
   const border  = isDark ? '#2c2c2e' : '#e5e5ea';
 
+  const progressWidth = useSharedValue(0);
+
   const handleProgress = useCallback((pct: number, label?: string) => {
-    setProgress(Math.min(Math.max(pct, 0), 100));
+    const safePct = Math.min(Math.max(pct, 0), 100);
+    setProgress(safePct);
+    progressWidth.value = withTiming(safePct, { duration: 300, easing: Easing.out(Easing.ease) });
     if (label) setProgressLabel(label);
   }, []);
+
+  const progressStyle = useAnimatedStyle(() => {
+    return { width: `${progressWidth.value}%` };
+  });
 
   const handleExecute = async () => {
     try {
@@ -114,6 +125,7 @@ export default function ToolShell({
     setStatus('idle');
     setProgress(0);
     setProgressLabel('');
+    router.replace('/tools'); // Navigate directly to tools catalog to continue workflow
   };
 
   const handleShare = async () => {
@@ -137,6 +149,7 @@ export default function ToolShell({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setStatus('idle');
     setProgress(0);
+    progressWidth.value = 0;
     setProgressLabel('');
     setErrorMsg('');
     setResultPath(null);
@@ -187,11 +200,21 @@ export default function ToolShell({
       {status === 'processing' && (
         <View style={styles.centerFlex}>
           <View style={[styles.stateCard, { backgroundColor: cardBg }]}>
-            <ActivityIndicator size="large" color={accentColor} style={{ marginBottom: 20 }} />
+            {lottieError ? (
+              <ActivityIndicator size="large" color={accentColor} style={{ marginBottom: 20 }} />
+            ) : (
+              <LottieView
+                source={require('../../assets/lottie/loader.json')}
+                autoPlay
+                loop
+                style={{ width: 140, height: 140, marginBottom: 12 }}
+                colorFilters={[{ keypath: '**', color: accentColor }]}
+              />
+            )}
             <Text style={[styles.stateTitle, { color: text }]}>Processing...</Text>
             <Text style={[styles.stateLabel, { color: muted }]}>{progressLabel}</Text>
             <View style={[styles.barBg, { backgroundColor: barBg }]}>
-              <View style={[styles.barFill, { width: `${progress}%` as any, backgroundColor: accentColor }]} />
+              <Animated.View style={[styles.barFill, progressStyle, { backgroundColor: accentColor }]} />
             </View>
             <Text style={[styles.pct, { color: accentColor }]}>{Math.round(progress)}%</Text>
             <Text style={[styles.engineNote, { color: muted }]}>Powered by QPDF / MuPDF NDK</Text>

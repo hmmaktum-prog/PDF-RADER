@@ -5,9 +5,16 @@ import { useAppTheme } from '../context/ThemeContext';
 import { compressPdf } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
+import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 export default function CompressScreen() {
   const { isDark } = useAppTheme();
+  
+  const [selectedFile, setSelectedFile] = useState('');
+  const [selectedFileName, setSelectedFileName] = useState('');
+
+  usePreselectedFile(setSelectedFile, setSelectedFileName);
+
   const [level, setLevel] = useState('Balanced');
   const [expertMode, setExpertMode] = useState(false);
   const [imgQuality, setImgQuality] = useState('70');
@@ -20,8 +27,6 @@ export default function CompressScreen() {
   const accent = '#007AFF';
   const borderColor = isDark ? '#444' : '#ccc';
 
-  const [selectedFile, setSelectedFile] = useState('');
-  const [selectedFileName, setSelectedFileName] = useState('');
   const muted = isDark ? '#888' : '#999';
 
   const PRESETS = [

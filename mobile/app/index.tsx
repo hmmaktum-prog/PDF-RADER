@@ -36,6 +36,15 @@ const STATS = [
   { num: '0',   label: 'Upload',  icon: '📴',  color: '#34C759' },
 ];
 
+function formatBytes(bytes: number, decimals = 2) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -122,7 +131,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: bg }]}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor="transparent" translucent />
 
       <ScrollView
         contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 32 }}
@@ -234,7 +243,9 @@ export default function HomeScreen() {
                       <Text style={styles.fileIcon}>{file.mimeType?.includes('image') ? '🖼️' : '📄'}</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.fileName, { color: text }]} numberOfLines={1}>{file.name}</Text>
-                        <Text style={[styles.fileSize, { color: muted }]}>{file.size || 'Unknown Size'}</Text>
+                        <Text style={[styles.fileSize, { color: muted }]}>
+                          {file.size ? formatBytes(Number(file.size)) : 'Calculated...'}
+                        </Text>
                       </View>
                    </View>
                 ))}
