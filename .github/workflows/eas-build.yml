@@ -146,6 +146,7 @@ jobs:
 
       # ── .so files → GitHub-এ Push ────────────────────────────────────────────
       - name: Commit and push .so files to GitHub
+        if: steps.check-so.outputs.exists != 'true' || github.event.inputs.force_rebuild_libs == 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -220,7 +221,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: |
             pnpm-lock.yaml
-            mobile/package-lock.json
+            mobile/pnpm-lock.yaml
 
       # ── Expo + EAS CLI ──────────────────────────────────────────────────────
       - name: Setup Expo and EAS CLI
@@ -232,7 +233,7 @@ jobs:
       # ── Dependencies ────────────────────────────────────────────────────────
       - name: Install Node dependencies
         working-directory: mobile
-        run: pnpm install --frozen-lockfile || pnpm install
+        run: pnpm install --frozen-lockfile
 
       # ── Login নিশ্চিত করো ──────────────────────────────────────────────────
       - name: Verify EAS login
