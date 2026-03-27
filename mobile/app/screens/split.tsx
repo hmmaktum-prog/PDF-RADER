@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,28 @@ import {
   Alert,
   Switch,
 } from 'react-native';
+import JSZip from 'jszip';
+import * as FileSystem from 'expo-file-system/legacy';
 import ToolShell from '../components/ToolShell';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { useAppTheme } from '../context/ThemeContext';
 import { splitPdf } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { usePreselectedFile } from '../hooks/usePreselectedFile';
+
+async function bundleDirAsZip(dirUri: string, zipUri: string): Promise<void> {
+  const zip = new JSZip();
+  const entries = await FileSystem.readDirectoryAsync(dirUri);
+  const pdfs = entries.filter((f) => f.toLowerCase().endsWith('.pdf')).sort();
+  for (const name of pdfs) {
+    const data = await FileSystem.readAsStringAsync(`${dirUri}/${name}`, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    zip.file(name, data, { base64: true });
+  }
+  const zipB64 = await zip.generateAsync({ type: 'base64', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+  await FileSystem.writeAsStringAsync(zipUri, zipB64, { encoding: FileSystem.EncodingType.Base64 });
+}
 
 type SplitMode = 'range' | 'count' | 'every';
 
@@ -60,11 +76,18 @@ export default function SplitScreen() {
     if (!selectedFile) throw new Error('Please select a PDF file first');
     await ensureOutputDir();
     const outputDir = getOutputPath('split_output');
-    let ranges = rangeInput;
+    let ranges = rangeInput.trim();
     if (mode === 'count') ranges = `split_count:${splitCount}`;
     else if (mode === 'every') ranges = `every_n:${everyN}`;
-    onProgress(35, 'Splitting PDF via QPDF...');
+    onProgress(30, 'Splitting PDF via QPDF...');
     await splitPdf(selectedFile, outputDir, ranges);
+    if (outputZip) {
+      onProgress(70, 'Bundling parts into ZIP...');
+      const zipPath = getOutputPath('split.zip');
+      await bundleDirAsZip(outputDir, zipPath);
+      onProgress(100, 'ZIP ready!');
+      return zipPath;
+    }
     onProgress(100, 'Split complete!');
     return outputDir;
   };

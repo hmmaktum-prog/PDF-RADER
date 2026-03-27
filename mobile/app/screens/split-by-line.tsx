@@ -39,13 +39,22 @@ export default function SplitByLineScreen() {
 
   const handleAction = async (onProgress: (pct: number, label?: string) => void) => {
     if (!selectedFile) throw new Error('Please select a PDF file first');
+
+    const ratioNum = parseInt(ratio, 10);
+    if (isNaN(ratioNum) || ratioNum < 1 || ratioNum > 99) {
+      throw new Error('Split ratio must be a number between 1 and 99.');
+    }
+
     await ensureOutputDir();
     const outputDir = getOutputPath('visual_split');
-    const rangeStr = `visual_split:${axis}:${scope}:${ratio}`;
-    onProgress(40, `Splitting (${ratio}% ${axis}) via QPDF...`);
+    const rangeStr = `visual_split:${axis}:${scope}:${ratioNum}`;
+    onProgress(40, `Visual splitting at ${ratioNum}% via QPDF...`);
     await splitPdf(selectedFile, outputDir, rangeStr);
+
+    // The C++ handler writes a single PDF: <outputDir>/visual_split_output.pdf
+    const resultPdf = `${outputDir}/visual_split_output.pdf`;
     onProgress(100, 'Done!');
-    return outputDir;
+    return resultPdf;
   };
 
   return (
@@ -112,7 +121,7 @@ export default function SplitByLineScreen() {
           onPress={() => setScope('individual')}
         >
           <Text style={{ color: scope === 'individual' ? accent : textColor, fontWeight: '600' }}>Individual</Text>
-          <Text style={{ color: muted, fontSize: 11 }}>Analyze per page</Text>
+          <Text style={{ color: muted, fontSize: 11 }}>Same ratio, per page</Text>
         </TouchableOpacity>
       </View>
     </ToolShell>

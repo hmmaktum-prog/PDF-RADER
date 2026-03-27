@@ -323,6 +323,99 @@ Java_com_pdfpowertools_native_QPDFBridge_splitPdf(
                     w.write();
                 }
             }
+        } else if (rng.find("visual_split:") == 0) {
+            // Format: "visual_split:<axis>:<scope>:<ratio>"
+            // axis  = "vertical" | "horizontal"
+            // scope = "all" | "individual"  (same ratio applied; individual reserved for future per-page detection)
+            // ratio = integer percentage at which to cut each page (1-99)
+            std::string params = rng.substr(13);
+            std::istringstream pss(params);
+            std::string axis, scope, ratioStr;
+            std::getline(pss, axis, ':');
+            std::getline(pss, scope, ':');
+            std::getline(pss, ratioStr, ':');
+            double ratio = 50.0;
+            try { ratio = std::stod(ratioStr); } catch (...) {}
+            if (ratio < 1.0) ratio = 1.0;
+            if (ratio > 99.0) ratio = 99.0;
+
+            // Open the same PDF a second time so we have two independent copies of each page.
+            // addPage() deep-copies objects via copyForeignObject, so pages from different QPDF
+            // instances are truly independent in the output — CropBox changes don't alias.
+            QPDF pdf2;
+            pdf2.processFile(in.c_str());
+            auto pages2 = QPDFPageDocumentHelper(pdf2).getAllPages();
+
+            QPDF out_pdf;
+            out_pdf.emptyPDF();
+
+            size_t count = std::min(pages.size(), pages2.size());
+            for (size_t i = 0; i < count; ++i) {
+                auto& p1 = pages[i];
+                auto& p2 = pages2[i];
+
+                // Resolve MediaBox — check page directly, then climb parent tree.
+                double x0 = 0, y0 = 0, x1 = 595, y1 = 842;
+                {
+                    QPDFObjectHandle mbox = p1.getObjectHandle().getKey("/MediaBox");
+                    QPDFObjectHandle node = p1.getObjectHandle();
+                    while (!mbox.isArray() && node.isDictionary()) {
+                        node = node.getKey("/Parent");
+                        if (node.isDictionary()) mbox = node.getKey("/MediaBox");
+                        else break;
+                    }
+                    if (mbox.isArray() && mbox.getArrayNItems() >= 4) {
+                        x0 = mbox.getArrayItem(0).getNumericValue();
+                        y0 = mbox.getArrayItem(1).getNumericValue();
+                        x1 = mbox.getArrayItem(2).getNumericValue();
+                        y1 = mbox.getArrayItem(3).getNumericValue();
+                    }
+                }
+                double w = x1 - x0;
+                double h = y1 - y0;
+
+                QPDFObjectHandle crop1 = QPDFObjectHandle::newArray();
+                QPDFObjectHandle crop2 = QPDFObjectHandle::newArray();
+
+                if (axis == "vertical") {
+                    double cutX = x0 + w * ratio / 100.0;
+                    // Left half
+                    crop1.appendItem(QPDFObjectHandle::newReal(x0));
+                    crop1.appendItem(QPDFObjectHandle::newReal(y0));
+                    crop1.appendItem(QPDFObjectHandle::newReal(cutX));
+                    crop1.appendItem(QPDFObjectHandle::newReal(y1));
+                    // Right half
+                    crop2.appendItem(QPDFObjectHandle::newReal(cutX));
+                    crop2.appendItem(QPDFObjectHandle::newReal(y0));
+                    crop2.appendItem(QPDFObjectHandle::newReal(x1));
+                    crop2.appendItem(QPDFObjectHandle::newReal(y1));
+                } else {
+                    // horizontal — PDF y=0 is bottom, y=h is top
+                    double cutY = y0 + h * (1.0 - ratio / 100.0);
+                    // Top half (visual top = high Y in PDF)
+                    crop1.appendItem(QPDFObjectHandle::newReal(x0));
+                    crop1.appendItem(QPDFObjectHandle::newReal(cutY));
+                    crop1.appendItem(QPDFObjectHandle::newReal(x1));
+                    crop1.appendItem(QPDFObjectHandle::newReal(y1));
+                    // Bottom half
+                    crop2.appendItem(QPDFObjectHandle::newReal(x0));
+                    crop2.appendItem(QPDFObjectHandle::newReal(y0));
+                    crop2.appendItem(QPDFObjectHandle::newReal(x1));
+                    crop2.appendItem(QPDFObjectHandle::newReal(cutY));
+                }
+
+                // Apply CropBox before copying into out_pdf
+                p1.getObjectHandle().replaceKey("/CropBox", crop1);
+                p2.getObjectHandle().replaceKey("/CropBox", crop2);
+                QPDFPageDocumentHelper(out_pdf).addPage(p1, false);
+                QPDFPageDocumentHelper(out_pdf).addPage(p2, false);
+            }
+
+            // Write single output PDF (not a per-page split directory)
+            std::string outPath = outDir + "/visual_split_output.pdf";
+            QPDFWriter w(out_pdf, outPath.c_str());
+            w.write();
+
         } else {
             auto parts = splitCsv(rng);
             if (parts.empty() || rng == "all") {
