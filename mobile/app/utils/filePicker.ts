@@ -20,7 +20,7 @@ export interface PickedFile {
 export async function pickSinglePdf(): Promise<PickedFile | null> {
   const result = await DocumentPicker.getDocumentAsync({
     type: 'application/pdf',
-    copyToCacheDirectory: true,
+    copyToCacheDirectory: false,
     multiple: false,
   });
 
@@ -44,7 +44,7 @@ export async function pickSinglePdf(): Promise<PickedFile | null> {
 export async function pickMultiplePdfs(): Promise<PickedFile[]> {
   const result = await DocumentPicker.getDocumentAsync({
     type: 'application/pdf',
-    copyToCacheDirectory: true,
+    copyToCacheDirectory: false,
     multiple: true,
   });
 

@@ -6,6 +6,7 @@ import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { invertColorsPdf } from '../utils/nativeModules';
 import { usePreselectedFile } from '../hooks/usePreselectedFile';
+import { NativeEventEmitter, NativeModules } from 'react-native';
 
 export default function InvertScreen() {
   const { isDark } = useAppTheme();
@@ -35,10 +36,21 @@ export default function InvertScreen() {
     if (!selectedFile) throw new Error('Please select a PDF file first');
     await ensureOutputDir();
     const outputPath = getOutputPath('inverted_output.pdf');
-    onProgress(30, 'Inverting colors via MuPDF...');
-    await invertColorsPdf(selectedFile, outputPath);
-    onProgress(100, 'Done!');
-    return outputPath;
+    
+    const eventEmitter = new NativeEventEmitter(NativeModules.MuPDFBridge);
+    const subscription = eventEmitter.addListener('MuPDFProgress', (event: { current: number; total: number }) => {
+      const pct = Math.round((event.current / event.total) * 100);
+      onProgress(pct, `Inverting page ${event.current}/${event.total}...`);
+    });
+
+    try {
+      onProgress(0, 'Initializing inversion...');
+      await invertColorsPdf(selectedFile, outputPath);
+      onProgress(100, 'Done!');
+      return outputPath;
+    } finally {
+      subscription.remove();
+    }
   };
 
   return (

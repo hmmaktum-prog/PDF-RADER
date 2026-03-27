@@ -10,6 +10,7 @@ export interface DocumentBlock {
   is_underline?: boolean;
   alignment?: 'left' | 'center' | 'right' | 'justify';
   separator_style?: 'single' | 'double' | 'dotted' | 'dashed';
+  metadata?: any;
 }
 
 // Available Gemini AI models
@@ -120,7 +121,7 @@ After verification, return ONLY the final corrected JSON array. No explanations.
 const JSON_CACHE = new Map<string, DocumentBlock[]>();
 
 export interface GeminiOcrOptions {
-  base64Images: string[];
+  imagePaths: string[];
   language: OcrLanguage;
   model: GeminiModel;
   customCommand?: string;
@@ -132,23 +133,23 @@ export interface GeminiOcrOptions {
  * Main OCR function with multi-model, chunking, and progress support.
  */
 export async function extractTextWithGemini(options: GeminiOcrOptions): Promise<DocumentBlock[]> {
-  const { base64Images, language, model, customCommand, chunkSize = 5, onProgress } = options;
+  const { imagePaths, language, model, customCommand, chunkSize = 5, onProgress } = options;
 
   const apiKey = await AsyncStorage.getItem('gemini_api_key');
   if (!apiKey) throw new Error('Gemini API Key missing. Go to Settings to add your key.');
 
   const allBlocks: DocumentBlock[] = [];
-  const totalChunks = Math.ceil(base64Images.length / chunkSize);
+  const totalChunks = Math.ceil(imagePaths.length / chunkSize);
 
   for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
     const start = chunkIdx * chunkSize;
-    const end = Math.min(start + chunkSize, base64Images.length);
-    const chunkImages = base64Images.slice(start, end);
+    const end = Math.min(start + chunkSize, imagePaths.length);
+    const chunkPaths = imagePaths.slice(start, end);
 
     onProgress?.(chunkIdx + 1, totalChunks, `Processing chunk ${chunkIdx + 1}/${totalChunks}`);
 
-    // Check cache
-    const cacheKey = chunkImages.map(img => img.substring(0, 50)).join('_') + `_${language}_${model}`;
+    // Check cache first (using file paths might not be stable across runs if they are temp, so we hash the paths or use them directly if they are stable. For OCR, it's fine for the session.)
+    const cacheKey = chunkPaths.map(img => img.substring(img.length - 20)).join('_') + `_${language}_${model}`;
     if (JSON_CACHE.has(cacheKey)) {
       allBlocks.push(...JSON_CACHE.get(cacheKey)!);
       continue;
@@ -162,10 +163,13 @@ export async function extractTextWithGemini(options: GeminiOcrOptions): Promise<
 
     const fullPrompt = `${SYSTEM_INSTRUCTION}\n\n${langInstruction}\n\n${step1}\n\n${STEP_2_QA}`;
 
-    // Build parts: text prompt + all images in chunk
     const parts: any[] = [{ text: fullPrompt }];
-    for (const img of chunkImages) {
-      parts.push({ inline_data: { mime_type: 'image/jpeg', data: img } });
+    
+    // Read the chunk's files from disk natively to avoid OOM
+    const FileSystem = require('expo-file-system/legacy');
+    for (const imgPath of chunkPaths) {
+      const b64 = await FileSystem.readAsStringAsync(imgPath, { encoding: FileSystem.EncodingType.Base64 });
+      parts.push({ inline_data: { mime_type: 'image/jpeg', data: b64 } });
     }
 
     const payload = {
@@ -205,17 +209,14 @@ export async function extractTextWithGemini(options: GeminiOcrOptions): Promise<
   return allBlocks;
 }
 
-/**
- * Legacy single-image API for backward compatibility
- */
 export async function extractSingleImage(
-  base64Image: string,
+  imagePath: string,
   lang: OcrLanguage,
   model: GeminiModel = 'gemini-2.5-flash',
   customCommand?: string
 ): Promise<DocumentBlock[]> {
   return extractTextWithGemini({
-    base64Images: [base64Image],
+    imagePaths: [imagePath],
     language: lang,
     model,
     customCommand,

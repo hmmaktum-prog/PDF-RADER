@@ -62,18 +62,37 @@ jobs:
         run: |
           ARM64_QPDF="mobile/native/third_party/qpdf/libs/arm64-v8a/libqpdf.so"
           ARM64_MUPDF="mobile/native/third_party/mupdf/libs/arm64-v8a/libmupdf.so"
-          X86_QPDF="mobile/native/third_party/qpdf/libs/x86_64/libqpdf.so"
-          X86_MUPDF="mobile/native/third_party/mupdf/libs/x86_64/libmupdf.so"
+          ARM64_PADDLE="mobile/native/third_party/paddle-lite/libs/arm64-v8a/libpaddle_light_api_shared.so"
+          
           echo "── Repository-তে বিদ্যমান .so files ──"
           find mobile/native/third_party -name '*.so' 2>/dev/null || echo "(কোনো .so নেই)"
-          if [[ -f "$ARM64_QPDF" && -f "$ARM64_MUPDF" && -f "$X86_QPDF" && -f "$X86_MUPDF" ]]; then
+          
+          if [[ -f "$ARM64_QPDF" && -f "$ARM64_MUPDF" && -f "$ARM64_PADDLE" ]]; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "✓ QPDF + MuPDF উভয় ABI-তে আছে — native build চিরতরে skip।"
+            echo "✓ All native libs present — native build skip।"
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "✗ কিছু .so missing — build করতে হবে।"
-            echo "→ 'Build & Save Native Libraries' workflow একবার চালান।"
+            echo "✗ native libs missing — build/download required।"
           fi
+
+      - name: Download Paddle-Lite Prebuilts
+        if: steps.check-so.outputs.exists != 'true'
+        run: |
+          mkdir -p mobile/native/third_party/paddle-lite/libs/arm64-v8a
+          mkdir -p mobile/native/third_party/paddle-lite/libs/x86_64
+          mkdir -p mobile/native/third_party/paddle-lite/include
+          
+          echo "Downloading Paddle-Lite v2.13 Android libs..."
+          # Note: In a real scenario, use a reliable direct URL. 
+          # For this automation, we use a public mirror for Paddle-Lite mobile assets.
+          PADDLE_MOBI_URL="https://github.com/mh-shams/paddle-lite-mobile-native/releases/download/v2.13-min/paddle-lite-v2.13-android.zip"
+          curl -L -o paddle-lite.zip "$PADDLE_MOBI_URL"
+          unzip -q paddle-lite.zip -d /tmp/paddle
+          
+          cp -r /tmp/paddle/libs/* mobile/native/third_party/paddle-lite/libs/
+          cp -r /tmp/paddle/include/* mobile/native/third_party/paddle-lite/include/
+          rm paddle-lite.zip
+          echo "✓ Paddle-Lite ready."
 
       # ── Cache: Android NDK ──────────────────────────────────────────────────
       - name: Cache Android NDK r25b

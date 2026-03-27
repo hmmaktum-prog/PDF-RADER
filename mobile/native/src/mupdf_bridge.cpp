@@ -270,11 +270,20 @@ Java_com_pdfpowertools_native_MuPDFBridge_batchRenderPages(
         jstring inputPath,
         jstring outputDirectory,
         jstring format,
-        jint quality) {
+        jint quality,
+        jobject progressCallback) {
     const std::string in = normalizePath(jstringToStd(env, inputPath));
     const std::string outDir = normalizePath(jstringToStd(env, outputDirectory));
     const std::string fmt = jstringToStd(env, format);
     LOGI("batchRenderPages: %s → %s (format=%s, quality=%d)", in.c_str(), outDir.c_str(), fmt.c_str(), quality);
+
+    jclass callbackClass = nullptr;
+    jmethodID invokeMethod = nullptr;
+    if (progressCallback) {
+        callbackClass = env->GetObjectClass(progressCallback);
+        // Function2 (two ints) in Kotlin has invoke(P1, P2)
+        invokeMethod = env->GetMethodID(callbackClass, "invoke", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+    }
 
 #ifdef HAS_MUPDF
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
@@ -319,6 +328,18 @@ Java_com_pdfpowertools_native_MuPDFBridge_batchRenderPages(
 
             fz_drop_pixmap(ctx, pix);
             fz_drop_page(ctx, page);
+
+            // Call progress callback
+            if (progressCallback && invokeMethod) {
+                jclass intClass = env->FindClass("java/lang/Integer");
+                jmethodID intConstructor = env->GetMethodID(intClass, "<init>", "(I)V");
+                jobject p1 = env->NewObject(intClass, intConstructor, i + 1);
+                jobject p2 = env->NewObject(intClass, intConstructor, pages);
+                env->CallObjectMethod(progressCallback, invokeMethod, p1, p2);
+                env->DeleteLocalRef(p1);
+                env->DeleteLocalRef(p2);
+                env->DeleteLocalRef(intClass);
+            }
         }
         fz_drop_document(ctx, doc);
         success = true;
@@ -336,6 +357,18 @@ Java_com_pdfpowertools_native_MuPDFBridge_batchRenderPages(
         for (int i = 0; i < pages; ++i) {
             const std::string out = outDir + "/page_" + std::to_string(i + 1) + (fmt == "png" ? ".png" : ".jpg");
             if (!writeTinyPng(out)) return JNI_FALSE;
+            
+            // Call progress callback dummy
+            if (progressCallback && invokeMethod) {
+                jclass intClass = env->FindClass("java/lang/Integer");
+                jmethodID intConstructor = env->GetMethodID(intClass, "<init>", "(I)V");
+                jobject p1 = env->NewObject(intClass, intConstructor, i + 1);
+                jobject p2 = env->NewObject(intClass, intConstructor, pages);
+                env->CallObjectMethod(progressCallback, invokeMethod, p1, p2);
+                env->DeleteLocalRef(p1);
+                env->DeleteLocalRef(p2);
+                env->DeleteLocalRef(intClass);
+            }
         }
         return JNI_TRUE;
     } catch (...) {
@@ -380,13 +413,32 @@ Java_com_pdfpowertools_native_MuPDFBridge_getPageDimensions(
     return result;
 }
 
+static void callProgressCallback(JNIEnv* env, jobject progressCallback, jmethodID invokeMethod, int current, int total) {
+    if (progressCallback && invokeMethod) {
+        jclass intClass = env->FindClass("java/lang/Integer");
+        jmethodID intConstructor = env->GetMethodID(intClass, "<init>", "(I)V");
+        jclass objClass = env->FindClass("java/lang/Object");
+        
+        jobject p1 = env->NewObject(intClass, intConstructor, current);
+        jobject p2 = env->NewObject(intClass, intConstructor, total);
+        
+        env->CallObjectMethod(progressCallback, invokeMethod, p1, p2);
+        
+        env->DeleteLocalRef(p1);
+        env->DeleteLocalRef(p2);
+        env->DeleteLocalRef(intClass);
+        env->DeleteLocalRef(objClass);
+    }
+}
+
 // ─── Grayscale PDF ───────────────────────────────────────────
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_pdfpowertools_native_MuPDFBridge_grayscalePdf(
         JNIEnv* env,
         jobject /* this */,
         jstring inputPath,
-        jstring outputPath) {
+        jstring outputPath,
+        jobject progressCallback) {
     LOGI("grayscalePdf");
     const std::string in = normalizePath(jstringToStd(env, inputPath));
     const std::string out = normalizePath(jstringToStd(env, outputPath));
@@ -400,6 +452,14 @@ Java_com_pdfpowertools_native_MuPDFBridge_grayscalePdf(
         fz_document* doc = fz_open_document(ctx, in.c_str());
         fz_document_writer* w = fz_new_pdf_writer(ctx, out.c_str(), nullptr);
         int pages = fz_count_pages(ctx, doc);
+
+        jclass callbackClass = nullptr;
+        jmethodID invokeMethod = nullptr;
+        if (progressCallback) {
+            callbackClass = env->GetObjectClass(progressCallback);
+            invokeMethod = env->GetMethodID(callbackClass, "invoke", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+        }
+
         for (int i = 0; i < pages; ++i) {
             fz_page* page = fz_load_page(ctx, doc, i);
             fz_rect rect = fz_bound_page(ctx, page);
@@ -418,6 +478,8 @@ Java_com_pdfpowertools_native_MuPDFBridge_grayscalePdf(
             fz_end_page(ctx, w);
             fz_drop_image(ctx, img);
             fz_drop_page(ctx, page);
+
+            callProgressCallback(env, progressCallback, invokeMethod, i + 1, pages);
         }
         fz_close_document_writer(ctx, w);
         fz_drop_document_writer(ctx, w);
@@ -441,7 +503,8 @@ Java_com_pdfpowertools_native_MuPDFBridge_whiteningPdf(
         jobject /* this */,
         jstring inputPath,
         jstring outputPath,
-        jint strength) {
+        jint strength,
+        jobject progressCallback) {
     LOGI("whiteningPdf (strength=%d)", strength);
     const std::string in = normalizePath(jstringToStd(env, inputPath));
     const std::string out = normalizePath(jstringToStd(env, outputPath));
@@ -455,6 +518,14 @@ Java_com_pdfpowertools_native_MuPDFBridge_whiteningPdf(
         fz_document* doc = fz_open_document(ctx, in.c_str());
         fz_document_writer* w = fz_new_pdf_writer(ctx, out.c_str(), nullptr);
         int pages = fz_count_pages(ctx, doc);
+
+        jclass callbackClass = nullptr;
+        jmethodID invokeMethod = nullptr;
+        if (progressCallback) {
+            callbackClass = env->GetObjectClass(progressCallback);
+            invokeMethod = env->GetMethodID(callbackClass, "invoke", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+        }
+
         for (int i = 0; i < pages; ++i) {
             fz_page* page = fz_load_page(ctx, doc, i);
             fz_rect rect = fz_bound_page(ctx, page);
@@ -491,6 +562,8 @@ Java_com_pdfpowertools_native_MuPDFBridge_whiteningPdf(
             fz_end_page(ctx, w);
             fz_drop_image(ctx, img);
             fz_drop_page(ctx, page);
+
+            callProgressCallback(env, progressCallback, invokeMethod, i + 1, pages);
         }
         fz_close_document_writer(ctx, w);
         fz_drop_document_writer(ctx, w);
@@ -514,7 +587,8 @@ Java_com_pdfpowertools_native_MuPDFBridge_enhanceContrastPdf(
         jobject /* this */,
         jstring inputPath,
         jstring outputPath,
-        jint level) {
+        jint level,
+        jobject progressCallback) {
     LOGI("enhanceContrastPdf (level=%d)", level);
     const std::string in = normalizePath(jstringToStd(env, inputPath));
     const std::string out = normalizePath(jstringToStd(env, outputPath));
@@ -528,6 +602,14 @@ Java_com_pdfpowertools_native_MuPDFBridge_enhanceContrastPdf(
         fz_document* doc = fz_open_document(ctx, in.c_str());
         fz_document_writer* w = fz_new_pdf_writer(ctx, out.c_str(), nullptr);
         int pages = fz_count_pages(ctx, doc);
+
+        jclass callbackClass = nullptr;
+        jmethodID invokeMethod = nullptr;
+        if (progressCallback) {
+            callbackClass = env->GetObjectClass(progressCallback);
+            invokeMethod = env->GetMethodID(callbackClass, "invoke", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+        }
+
         for (int i = 0; i < pages; ++i) {
             fz_page* page = fz_load_page(ctx, doc, i);
             fz_rect rect = fz_bound_page(ctx, page);
@@ -564,6 +646,8 @@ Java_com_pdfpowertools_native_MuPDFBridge_enhanceContrastPdf(
             fz_end_page(ctx, w);
             fz_drop_image(ctx, img);
             fz_drop_page(ctx, page);
+
+            callProgressCallback(env, progressCallback, invokeMethod, i + 1, pages);
         }
         fz_close_document_writer(ctx, w);
         fz_drop_document_writer(ctx, w);
@@ -586,7 +670,8 @@ Java_com_pdfpowertools_native_MuPDFBridge_invertColorsPdf(
         JNIEnv* env,
         jobject /* this */,
         jstring inputPath,
-        jstring outputPath) {
+        jstring outputPath,
+        jobject progressCallback) {
     LOGI("invertColorsPdf");
     const std::string in = normalizePath(jstringToStd(env, inputPath));
     const std::string out = normalizePath(jstringToStd(env, outputPath));
@@ -600,6 +685,14 @@ Java_com_pdfpowertools_native_MuPDFBridge_invertColorsPdf(
         fz_document* doc = fz_open_document(ctx, in.c_str());
         fz_document_writer* w = fz_new_pdf_writer(ctx, out.c_str(), nullptr);
         int pages = fz_count_pages(ctx, doc);
+
+        jclass callbackClass = nullptr;
+        jmethodID invokeMethod = nullptr;
+        if (progressCallback) {
+            callbackClass = env->GetObjectClass(progressCallback);
+            invokeMethod = env->GetMethodID(callbackClass, "invoke", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+        }
+
         for (int i = 0; i < pages; ++i) {
             fz_page* page = fz_load_page(ctx, doc, i);
             fz_rect rect = fz_bound_page(ctx, page);
@@ -631,6 +724,8 @@ Java_com_pdfpowertools_native_MuPDFBridge_invertColorsPdf(
             fz_end_page(ctx, w);
             fz_drop_image(ctx, img);
             fz_drop_page(ctx, page);
+
+            callProgressCallback(env, progressCallback, invokeMethod, i + 1, pages);
         }
         fz_close_document_writer(ctx, w);
         fz_drop_document_writer(ctx, w);
@@ -653,7 +748,8 @@ Java_com_pdfpowertools_native_MuPDFBridge_geminiAiWhitening(
         JNIEnv* env,
         jobject /* this */,
         jstring inputPath,
-        jstring outputPath) {
+        jstring outputPath,
+        jobject progressCallback) {
     LOGI("geminiAiWhitening");
     const std::string in = normalizePath(jstringToStd(env, inputPath));
     const std::string out = normalizePath(jstringToStd(env, outputPath));
@@ -667,6 +763,14 @@ Java_com_pdfpowertools_native_MuPDFBridge_geminiAiWhitening(
         fz_document* doc = fz_open_document(ctx, in.c_str());
         fz_document_writer* w = fz_new_pdf_writer(ctx, out.c_str(), nullptr);
         int pages = fz_count_pages(ctx, doc);
+
+        jclass callbackClass = nullptr;
+        jmethodID invokeMethod = nullptr;
+        if (progressCallback) {
+            callbackClass = env->GetObjectClass(progressCallback);
+            invokeMethod = env->GetMethodID(callbackClass, "invoke", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+        }
+
         for (int i = 0; i < pages; ++i) {
             fz_page* page = fz_load_page(ctx, doc, i);
             fz_rect rect = fz_bound_page(ctx, page);
@@ -700,6 +804,8 @@ Java_com_pdfpowertools_native_MuPDFBridge_geminiAiWhitening(
             fz_end_page(ctx, w);
             fz_drop_image(ctx, img);
             fz_drop_page(ctx, page);
+
+            callProgressCallback(env, progressCallback, invokeMethod, i + 1, pages);
         }
         fz_close_document_writer(ctx, w);
         fz_drop_document_writer(ctx, w);
@@ -714,4 +820,104 @@ Java_com_pdfpowertools_native_MuPDFBridge_geminiAiWhitening(
 #endif
 
     return copyFileSafe(in, out) ? JNI_TRUE : JNI_FALSE;
+}
+// ─── Search PDF Text ──────────────────────────────────────────
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_pdfpowertools_native_MuPDFBridge_searchPdfText(
+        JNIEnv* env,
+        jobject /* this */,
+        jstring inputPath,
+        jstring query) {
+    const std::string in = normalizePath(jstringToStd(env, inputPath));
+    const std::string q = jstringToStd(env, query);
+    LOGI("searchPdfText: query='%s' in %s", q.c_str(), in.c_str());
+
+#ifdef HAS_MUPDF
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) return env->NewStringUTF("[]");
+    std::string resultsJson = "[";
+    fz_try(ctx) {
+        fz_register_document_handlers(ctx);
+        fz_document* doc = fz_open_document(ctx, in.c_str());
+        int pages = fz_count_pages(ctx, doc);
+        bool first = true;
+        for (int i = 0; i < pages; ++i) {
+            fz_page* page = fz_load_page(ctx, doc, i);
+            fz_rect rects[100];
+            int hits = fz_search_page(ctx, page, q.c_str(), rects, 100);
+            if (hits > 0) {
+                if (!first) resultsJson += ",";
+                resultsJson += "{\"page\":" + std::to_string(i + 1) + ",\"hits\":" + std::to_string(hits) + "}";
+                first = false;
+            }
+            fz_drop_page(ctx, page);
+        }
+        fz_drop_document(ctx, doc);
+    }
+    fz_catch(ctx) {
+        LOGE("searchPdfText error: %s", fz_caught_message(ctx));
+    }
+    fz_drop_context(ctx);
+    resultsJson += "]";
+    return env->NewStringUTF(resultsJson.c_str());
+#else
+    return env->NewStringUTF("[]");
+#endif
+}
+
+#ifdef HAS_MUPDF
+static void walkOutline(fz_context* ctx, fz_outline* node, std::string& json, int depth) {
+    while (node) {
+        if (json.back() == '}') json += ",";
+        json += "{\"title\":\"";
+        // Escape quotes in title
+        std::string title = node->title ? node->title : "Untitled";
+        for (char c : title) {
+            if (c == '"') json += "\\\"";
+            else json += c;
+        }
+        json += "\",\"page\":" + std::to_string(node->page + 1);
+        if (node->down) {
+            json += ",\"items\":[";
+            walkOutline(ctx, node->down, json, depth + 1);
+            json += "]";
+        }
+        json += "}";
+        node = node->next;
+    }
+}
+#endif
+
+// ─── Get PDF Outline (TOC) ────────────────────────────────────
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_pdfpowertools_native_MuPDFBridge_getPdfOutline(
+        JNIEnv* env,
+        jobject /* this */,
+        jstring inputPath) {
+    const std::string in = normalizePath(jstringToStd(env, inputPath));
+    LOGI("getPdfOutline: %s", in.c_str());
+
+#ifdef HAS_MUPDF
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) return env->NewStringUTF("[]");
+    std::string outlineJson = "[";
+    fz_try(ctx) {
+        fz_register_document_handlers(ctx);
+        fz_document* doc = fz_open_document(ctx, in.c_str());
+        fz_outline* root = fz_load_outline(ctx, doc);
+        if (root) {
+            walkOutline(ctx, root, outlineJson, 0);
+            fz_drop_outline(ctx, root);
+        }
+        fz_drop_document(ctx, doc);
+    }
+    fz_catch(ctx) {
+        LOGE("getPdfOutline error: %s", fz_caught_message(ctx));
+    }
+    fz_drop_context(ctx);
+    outlineJson += "]";
+    return env->NewStringUTF(outlineJson.c_str());
+#else
+    return env->NewStringUTF("[]");
+#endif
 }

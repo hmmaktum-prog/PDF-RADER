@@ -40,6 +40,18 @@ const MuPDFBridge: any = nativeMupdfModule ?? {
   invertColorsPdf: () => Promise.resolve(false),
   geminiAiWhitening: () => Promise.resolve(false),
   isMupdfLinked: () => Promise.resolve(false),
+  searchPdfText: () => Promise.resolve("[]"),
+  getPdfOutline: () => Promise.resolve("[]"),
+};
+
+const nativePaddleModule = NativeModules.PaddleOCRBridge;
+const hasNativePaddleModule = !!nativePaddleModule;
+
+const PaddleOCRBridge: any = nativePaddleModule ?? {
+  recognizeImage: () => Promise.resolve({ text: '', confidence: 0 }),
+  downloadModel: () => Promise.resolve(true),
+  isModelDownloaded: () => Promise.resolve(false),
+  releaseEngine: () => Promise.resolve(true),
 };
 
 function ensureAndroid(name: string): void {
@@ -310,6 +322,26 @@ export async function geminiAiWhitening(inputPath: string, outputPath: string): 
   return ok;
 }
 
+export async function searchPdfText(inputPath: string, query: string): Promise<any[]> {
+  if (!isAndroidPlatform) return [];
+  try {
+    const json = await MuPDFBridge.searchPdfText(inputPath, query);
+    return JSON.parse(json);
+  } catch {
+    return [];
+  }
+}
+
+export async function getPdfOutline(inputPath: string): Promise<any[]> {
+  if (!isAndroidPlatform) return [];
+  try {
+    const json = await MuPDFBridge.getPdfOutline(inputPath);
+    return JSON.parse(json);
+  } catch {
+    return [];
+  }
+}
+
 // ──────────────────────────────────────────────
 // MuPDF Operations (Rendering)
 // ──────────────────────────────────────────────
@@ -431,4 +463,35 @@ export async function batchRenderPages(
     'Individual page rendering also failed for every page. ' +
     'Check System Status in Settings for engine linking details.'
   );
+}
+
+// ──────────────────────────────────────────────
+// PaddleOCR Operations (Offline OCR)
+// ──────────────────────────────────────────────
+
+export async function isPaddleModelDownloaded(language: string): Promise<boolean> {
+  if (!isAndroidPlatform) return false;
+  try {
+    return await PaddleOCRBridge.isModelDownloaded(language);
+  } catch {
+    return false;
+  }
+}
+
+export async function recognizeImageOcr(imagePath: string, language: string): Promise<{ text: string, confidence: number }> {
+  ensureAndroid('recognizeImageOcr');
+  try {
+    return await PaddleOCRBridge.recognizeImage(imagePath, language);
+  } catch (e: any) {
+    throw new Error(`OCR Recognition failed: ${e.message}`);
+  }
+}
+
+export async function releaseOcrEngine(): Promise<void> {
+  if (!isAndroidPlatform) return;
+  try {
+    await PaddleOCRBridge.releaseEngine();
+  } catch (e) {
+    console.warn('OCR Engine release failed', e);
+  }
 }

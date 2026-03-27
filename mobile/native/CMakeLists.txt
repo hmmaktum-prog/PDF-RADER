@@ -44,6 +44,7 @@ add_library(
     SHARED
     "${CMAKE_CURRENT_SOURCE_DIR}/src/qpdf_bridge.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mupdf_bridge.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/paddle_ocr_bridge.cpp"
 )
 
 find_library(log-lib  log)
@@ -96,8 +97,22 @@ if(EXISTS "${QPDF_INCLUDE_DIR}" AND EXISTS "${QPDF_LIB_DIR}/libqpdf.so")
   target_compile_definitions(pdfpowertools_native PRIVATE HAS_QPDF=1 POINTERHOLDER_TRANSITION=0)
   target_link_libraries(pdfpowertools_native qpdf)
   message(STATUS "QPDF    ENABLED → ${QPDF_LIB_DIR}/libqpdf.so")
+# ── Paddle-Lite: declare as IMPORTED SHARED ───────────────────────────────────
+set(PADDLE_INCLUDE_DIR "${PDF_NATIVE_THIRD_PARTY_DIR}/paddle-lite/include")
+set(PADDLE_LIB_DIR     "${PDF_NATIVE_THIRD_PARTY_DIR}/paddle-lite/libs/${_PDF_NATIVE_ABI}")
+
+if(EXISTS "${PADDLE_INCLUDE_DIR}" AND EXISTS "${PADDLE_LIB_DIR}/libpaddle_light_api_shared.so")
+  add_library(paddle_lite SHARED IMPORTED)
+  set_target_properties(paddle_lite PROPERTIES
+      IMPORTED_LOCATION "${PADDLE_LIB_DIR}/libpaddle_light_api_shared.so"
+  )
+
+  target_include_directories(pdfpowertools_native PRIVATE "${PADDLE_INCLUDE_DIR}")
+  target_compile_definitions(pdfpowertools_native PRIVATE HAS_PADDLE=1)
+  target_link_libraries(pdfpowertools_native paddle_lite)
+  message(STATUS "Paddle-Lite ENABLED → ${PADDLE_LIB_DIR}/libpaddle_light_api_shared.so")
 else()
-  message(STATUS "QPDF NOT FOUND for ABI=${_PDF_NATIVE_ABI} — building stub only")
+  message(STATUS "Paddle-Lite NOT FOUND for ABI=${_PDF_NATIVE_ABI} — building stub only")
 endif()
 
 target_link_libraries(

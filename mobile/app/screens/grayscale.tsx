@@ -7,6 +7,7 @@ import { pickSinglePdf } from '../utils/filePicker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { usePreselectedFile } from '../hooks/usePreselectedFile';
+import { NativeEventEmitter, NativeModules } from 'react-native';
 
 export default function GrayscaleScreen() {
   const { isDark } = useAppTheme();
@@ -59,10 +60,21 @@ export default function GrayscaleScreen() {
     if (!selectedFile) throw new Error('Please select a PDF file first');
     await ensureOutputDir();
     const outputPath = getOutputPath('grayscale_output.pdf');
-    onProgress(35, 'Converting to grayscale via MuPDF...');
-    await grayscalePdf(selectedFile, outputPath);
-    onProgress(100, 'Done!');
-    return outputPath;
+    
+    const eventEmitter = new NativeEventEmitter(NativeModules.MuPDFBridge);
+    const subscription = eventEmitter.addListener('MuPDFProgress', (event: { current: number; total: number }) => {
+      const pct = Math.round((event.current / event.total) * 100);
+      onProgress(pct, `Converting page ${event.current}/${event.total}...`);
+    });
+
+    try {
+      onProgress(0, 'Initializing grayscale conversion...');
+      await grayscalePdf(selectedFile, outputPath);
+      onProgress(100, 'Done!');
+      return outputPath;
+    } finally {
+      subscription.remove();
+    }
   };
 
   return (

@@ -48,6 +48,8 @@
     },
     "plugins": [
       "expo-router",
+      "@config-plugins/react-native-pdf",
+      "@config-plugins/react-native-blob-util",
       [
         "expo-build-properties",
         {

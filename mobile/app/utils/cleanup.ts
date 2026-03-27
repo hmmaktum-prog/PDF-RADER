@@ -6,6 +6,7 @@ const TEMP_SUBDIRS = [
   'ocr_output/pages',
   '.temp',
   'intermediate',
+  'visual_split',
 ];
 
 /**

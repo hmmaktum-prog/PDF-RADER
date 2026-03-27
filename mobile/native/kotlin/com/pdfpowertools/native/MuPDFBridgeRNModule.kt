@@ -63,18 +63,32 @@ class MuPDFBridgeRNModule(reactContext: ReactApplicationContext) : ReactContextB
   fun batchRenderPages(inputPath: String, outputDirectory: String, format: String, quality: Int, promise: Promise) {
     CoroutineScope(Dispatchers.IO).launch {
       try {
-        promise.resolve(MuPDFBridge.batchRenderPages(inputPath, outputDirectory, format, quality))
+        val result = MuPDFBridge.batchRenderPages(inputPath, outputDirectory, format, quality) { current, total ->
+          emitProgress(current, total)
+        }
+        promise.resolve(result)
       } catch (t: Throwable) {
         promise.reject("MUPDF_BATCH_RENDER_FAILED", t)
       }
     }
   }
 
+  private fun emitProgress(current: Int, total: Int) {
+    val params = com.facebook.react.bridge.Arguments.createMap()
+    params.putInt("current", current)
+    params.putInt("total", total)
+    reactApplicationContext
+      .getJSModule(com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+      .emit("MuPDFProgress", params)
+  }
+
   @ReactMethod
   fun grayscalePdf(inputPath: String, outputPath: String, promise: Promise) {
     CoroutineScope(Dispatchers.IO).launch {
       try {
-        promise.resolve(MuPDFBridge.grayscalePdf(inputPath, outputPath))
+        promise.resolve(MuPDFBridge.grayscalePdf(inputPath, outputPath) { current, total ->
+          emitProgress(current, total)
+        })
       } catch (t: Throwable) {
         promise.reject("MUPDF_GRAYSCALE_FAILED", t)
       }
@@ -85,7 +99,9 @@ class MuPDFBridgeRNModule(reactContext: ReactApplicationContext) : ReactContextB
   fun whiteningPdf(inputPath: String, outputPath: String, strength: Int, promise: Promise) {
     CoroutineScope(Dispatchers.IO).launch {
       try {
-        promise.resolve(MuPDFBridge.whiteningPdf(inputPath, outputPath, strength))
+        promise.resolve(MuPDFBridge.whiteningPdf(inputPath, outputPath, strength) { current, total ->
+          emitProgress(current, total)
+        })
       } catch (t: Throwable) {
         promise.reject("MUPDF_WHITENING_FAILED", t)
       }
@@ -96,7 +112,9 @@ class MuPDFBridgeRNModule(reactContext: ReactApplicationContext) : ReactContextB
   fun enhanceContrastPdf(inputPath: String, outputPath: String, level: Int, promise: Promise) {
     CoroutineScope(Dispatchers.IO).launch {
       try {
-        promise.resolve(MuPDFBridge.enhanceContrastPdf(inputPath, outputPath, level))
+        promise.resolve(MuPDFBridge.enhanceContrastPdf(inputPath, outputPath, level) { current, total ->
+          emitProgress(current, total)
+        })
       } catch (t: Throwable) {
         promise.reject("MUPDF_CONTRAST_FAILED", t)
       }
@@ -107,7 +125,9 @@ class MuPDFBridgeRNModule(reactContext: ReactApplicationContext) : ReactContextB
   fun invertColorsPdf(inputPath: String, outputPath: String, promise: Promise) {
     CoroutineScope(Dispatchers.IO).launch {
       try {
-        promise.resolve(MuPDFBridge.invertColorsPdf(inputPath, outputPath))
+        promise.resolve(MuPDFBridge.invertColorsPdf(inputPath, outputPath) { current, total ->
+          emitProgress(current, total)
+        })
       } catch (t: Throwable) {
         promise.reject("MUPDF_INVERT_FAILED", t)
       }
@@ -118,9 +138,32 @@ class MuPDFBridgeRNModule(reactContext: ReactApplicationContext) : ReactContextB
   fun geminiAiWhitening(inputPath: String, outputPath: String, promise: Promise) {
     CoroutineScope(Dispatchers.IO).launch {
       try {
-        promise.resolve(MuPDFBridge.geminiAiWhitening(inputPath, outputPath))
+        promise.resolve(MuPDFBridge.geminiAiWhitening(inputPath, outputPath) { current, total ->
+          emitProgress(current, total)
+        })
       } catch (t: Throwable) {
         promise.reject("MUPDF_GEMINI_WHITENING_FAILED", t)
+      }
+    }
+  }
+  @ReactMethod
+  fun searchPdfText(inputPath: String, query: String, promise: Promise) {
+    CoroutineScope(Dispatchers.IO).launch {
+      try {
+        promise.resolve(MuPDFBridge.searchPdfText(inputPath, query))
+      } catch (t: Throwable) {
+        promise.reject("MUPDF_SEARCH_FAILED", t)
+      }
+    }
+  }
+
+  @ReactMethod
+  fun getPdfOutline(inputPath: String, promise: Promise) {
+    CoroutineScope(Dispatchers.IO).launch {
+      try {
+        promise.resolve(MuPDFBridge.getPdfOutline(inputPath))
+      } catch (t: Throwable) {
+        promise.reject("MUPDF_OUTLINE_FAILED", t)
       }
     }
   }

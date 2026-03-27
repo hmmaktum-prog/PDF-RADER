@@ -27,7 +27,7 @@ function getSeparatorBorderStyle(style?: string): (typeof docx.BorderStyle)[keyo
   }
 }
 
-export async function generateDocxFromBlocks(blocks: DocumentBlock[], options: DocxOptions = {}): Promise<Blob> {
+export function createDocxDocument(blocks: DocumentBlock[], options: DocxOptions = {}): docx.Document {
   const docxChildren: any[] = [];
   const defaultFont = options.fontFamily || 'Calibri';
   const spacingRules = options.lineSpacing ? { line: options.lineSpacing } : undefined;
@@ -167,7 +167,7 @@ export async function generateDocxFromBlocks(blocks: DocumentBlock[], options: D
     }
   }
 
-  const doc = new docx.Document({
+  return new docx.Document({
     sections: [{
       properties: {
         page: {
@@ -205,7 +205,10 @@ export async function generateDocxFromBlocks(blocks: DocumentBlock[], options: D
       children: docxChildren,
     }],
   });
+}
 
+export async function generateDocxFromBlocks(blocks: DocumentBlock[], options: DocxOptions = {}): Promise<Blob> {
+  const doc = createDocxDocument(blocks, options);
   return await docx.Packer.toBlob(doc);
 }
 
@@ -214,15 +217,6 @@ export async function generateDocxFromBlocks(blocks: DocumentBlock[], options: D
  * Use this on React Native where Blob cannot be written to the file system directly.
  */
 export async function generateDocxAsBase64(blocks: DocumentBlock[], options: DocxOptions = {}): Promise<string> {
-  const blob = await generateDocxFromBlocks(blocks, options);
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      const base64 = result.split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+  const doc = createDocxDocument(blocks, options);
+  return await docx.Packer.toBase64String(doc);
 }

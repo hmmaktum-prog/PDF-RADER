@@ -8,6 +8,7 @@ import {
   ScrollView,
   StatusBar,
   Platform,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -77,6 +78,7 @@ export default function ToolShell({
   const [progressLabel, setProgressLabel] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [resultPath, setResultPath] = useState<string | null>(null);
+  const [customFileName, setCustomFileName] = useState('');
   const [lottieError, setLottieError] = useState(false);
 
   const bg      = isDark ? '#000000' : '#f2f2f7';
@@ -106,7 +108,10 @@ export default function ToolShell({
       setProgress(0);
       setProgressLabel('Initializing engine...');
       const output = await onExecute(handleProgress);
-      if (output) setResultPath(output);
+      if (output) {
+        setResultPath(output);
+        setCustomFileName(output.split('/').pop() || 'output.pdf');
+      }
       setProgress(100);
       setProgressLabel('Done!');
       setStatus('result');
@@ -257,6 +262,41 @@ export default function ToolShell({
                 <Text style={styles.actionBtnText}>➡️  Continue</Text>
               </TouchableOpacity>
             </View>
+            <View style={{ width: '100%', marginTop: 16 }}>
+              <Text style={{ color: muted, fontSize: 12, marginBottom: 6, marginLeft: 4 }}>Output Filename</Text>
+              <TextInput
+                style={{ backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: text, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, fontSize: 14 }}
+                value={customFileName}
+                onChangeText={setCustomFileName}
+                placeholder="name.pdf"
+                placeholderTextColor={muted}
+              />
+            </View>
+            <TouchableOpacity 
+              style={[styles.saveDeviceBtn, { backgroundColor: '#007AFF' }]} 
+              onPress={async () => {
+                if (!resultPath) return;
+                try {
+                  const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+                  if (!permissions.granted) return;
+                  const fileName = customFileName.trim() || resultPath.split('/').pop() || 'output.pdf';
+                  const inferred = await inferShareOptions(resultPath);
+                  const mime = shareMimeType ?? inferred.mimeType ?? 'application/pdf';
+                  
+                  const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(permissions.directoryUri, fileName, mime);
+                  const base64 = await FileSystem.readAsStringAsync(resultPath, { encoding: FileSystem.EncodingType.Base64 });
+                  await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+                  
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  alert('File saved successfully to device.');
+                } catch (e: any) {
+                  alert('Error saving file: ' + e.message);
+                }
+              }} 
+              activeOpacity={0.85}
+            >
+              <Text style={styles.actionBtnText}>💾  Save to Device</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={[styles.resetBtn, { borderColor: border }]} onPress={handleReset} activeOpacity={0.7} testID="button-start-again">
               <Text style={[styles.resetText, { color: muted }]}>🔄  Start Again</Text>
             </TouchableOpacity>
@@ -326,6 +366,7 @@ const styles = StyleSheet.create({
   actionRow:  { flexDirection: 'row', gap: 12, marginTop: 20, width: '100%' },
   actionBtn:  { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', elevation: 2 },
   actionBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  saveDeviceBtn: { width: '100%', paddingVertical: 14, borderRadius: 12, alignItems: 'center', elevation: 2, marginTop: 12 },
   resetBtn:   { marginTop: 14, paddingVertical: 10, paddingHorizontal: 28, borderRadius: 10, borderWidth: 1 },
   resetText:  { fontSize: 14 },
 });

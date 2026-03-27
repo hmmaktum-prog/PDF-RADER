@@ -39,8 +39,14 @@ export default function PdfToImageScreen() {
     onProgress(10, 'Creating output directory...');
     await FileSystem.makeDirectoryAsync(outDir, { intermediates: true });
 
-    onProgress(35, `Rendering pages as ${format.toUpperCase()}...`);
-    await batchRenderPages(selectedFile, outDir, format, quality);
+    onProgress(15, `Starting extraction...`);
+    // Optional: get total pages if we want true percentage mapping, 
+    // but the callback signature is (page, total) so we can compute it inside.
+    await batchRenderPages(selectedFile, outDir, format, quality, (p, total) => {
+      const pct = 15 + Math.round((p / total) * 85);
+      onProgress(pct, `Extracted page ${p} of ${total}`);
+    });
+    
     onProgress(100, 'Done!');
     return outDir;
   };

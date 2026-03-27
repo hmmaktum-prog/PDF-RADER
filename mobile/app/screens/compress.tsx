@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput, Switch } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput, Switch, Image } from 'react-native';
 import ToolShell from '../components/ToolShell';
 import { useAppTheme } from '../context/ThemeContext';
-import { compressPdf } from '../utils/nativeModules';
+import { compressPdf, renderPageToImage } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { usePreselectedFile } from '../hooks/usePreselectedFile';
@@ -20,6 +20,8 @@ export default function CompressScreen() {
   const [imgQuality, setImgQuality] = useState('70');
   const [resScale, setResScale] = useState('100');
   const [grayscale, setGrayscale] = useState(false);
+  const [previewUri, setPreviewUri] = useState('');
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const textColor = isDark ? '#fff' : '#000';
   const cardBg = isDark ? '#1e1e1e' : '#f0f0f0';
@@ -37,12 +39,26 @@ export default function CompressScreen() {
     { id: 'High', icon: '📸', desc: 'Original look retained', saving: '~10-20%' },
   ];
 
+  const generatePreview = async (path: string) => {
+    setLoadingPreview(true);
+    try {
+      const out = getOutputPath(`preview_compress_${Date.now()}.jpg`);
+      const ok = await renderPageToImage(path, 0, out, false);
+      if (ok) setPreviewUri('file://' + out);
+    } catch (e) {
+      console.warn('Preview failed', e);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
   const handlePickFile = async () => {
     try {
       const picked = await pickSinglePdf();
       if (!picked) return;
       setSelectedFile(picked.path);
       setSelectedFileName(picked.name);
+      await generatePreview(picked.path);
     } catch (e: any) {
       Alert.alert('File Picker Error', e.message);
     }
@@ -73,6 +89,16 @@ export default function CompressScreen() {
         </Text>
         <Text style={{ color: muted, fontSize: 12 }}>{selectedFile ? 'Tap to change file' : 'Tap to browse'}</Text>
       </TouchableOpacity>
+
+      {previewUri && (
+        <View style={[styles.previewContainer, { backgroundColor: cardBg, borderColor }]}>
+          <Image source={{ uri: previewUri }} style={styles.previewImg} resizeMode="contain" />
+          <View style={styles.previewDetails}>
+            <Text style={[styles.label, { color: textColor }]}>Page Preview</Text>
+            <Text style={{ color: muted, fontSize: 11 }}>First page shown for reference</Text>
+          </View>
+        </View>
+      )}
 
       <View style={[styles.sectionHeader, { marginBottom: 10 }]}>
         <Text style={[styles.label, { color: textColor }]}>🗜️ Compression Level</Text>
@@ -144,4 +170,7 @@ const styles = StyleSheet.create({
   expertBox: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 10 },
   input: { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 15, textAlign: 'center' },
   toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderRadius: 12, marginTop: 8 },
+  previewContainer: { flexDirection: 'row', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 16, alignItems: 'center' },
+  previewImg: { width: 60, height: 80, borderRadius: 8, backgroundColor: '#eee' },
+  previewDetails: { marginLeft: 15, flex: 1 },
 });

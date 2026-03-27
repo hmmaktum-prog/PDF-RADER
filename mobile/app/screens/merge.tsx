@@ -114,9 +114,19 @@ export default function MergeScreen() {
     if (files.length < 2) throw new Error('Please select at least 2 PDF files to merge');
     await ensureOutputDir();
     const outputPath = getOutputPath('merged_output.pdf');
-    onProgress(20, 'Validating input files...');
-    onProgress(45, `Merging ${files.length} PDFs via QPDF...${invertColors ? ' (Inverting Colors)' : ''}`);
-    await mergePdfs(files.map(f => f.path), outputPath, invertColors);
+    onProgress(10, 'Validating input files...');
+    
+    let currentPct = 10;
+    const interval = setInterval(() => {
+      currentPct += (90 - currentPct) * 0.1; 
+      onProgress(Math.min(95, Math.round(currentPct)), `Merging ${files.length} PDFs via QPDF...${invertColors ? ' (Inverting Colors)' : ''}`);
+    }, 500);
+
+    try {
+      await mergePdfs(files.map(f => f.path), outputPath, invertColors);
+    } finally {
+      clearInterval(interval);
+    }
     onProgress(100, 'Merge complete!');
     return outputPath;
   };

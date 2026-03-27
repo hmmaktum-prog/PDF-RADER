@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
 import ToolShell from '../components/ToolShell';
 import { useAppTheme } from '../context/ThemeContext';
-import { enhanceContrastPdf } from '../utils/nativeModules';
+import { enhanceContrastPdf, renderPageToImage } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { usePreselectedFile } from '../hooks/usePreselectedFile';
+import { NativeEventEmitter, NativeModules } from 'react-native';
 
 export default function EnhanceContrastScreen() {
   const { isDark } = useAppTheme();
@@ -16,11 +17,26 @@ export default function EnhanceContrastScreen() {
   usePreselectedFile(setSelectedFile, setSelectedFileName);
 
   const [level, setLevel] = useState(3);
+  const [previewUri, setPreviewUri] = useState('');
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const textColor = isDark ? '#fff' : '#000';
   const cardBg = isDark ? '#1e1e1e' : '#f0f0f0';
   const accent = '#007AFF';
   const muted = isDark ? '#888' : '#777';
+
+  const generatePreview = async (path: string) => {
+    setLoadingPreview(true);
+    try {
+      const out = getOutputPath(`preview_contrast_${Date.now()}.jpg`);
+      const ok = await renderPageToImage(path, 0, out, false);
+      if (ok) setPreviewUri('file://' + out);
+    } catch (e) {
+      console.warn('Preview failed', e);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
 
   const handlePickFile = async () => {
     try {
@@ -28,6 +44,7 @@ export default function EnhanceContrastScreen() {
       if (!picked) return;
       setSelectedFile(picked.path);
       setSelectedFileName(picked.name);
+      await generatePreview(picked.path);
     } catch (e: any) {
       Alert.alert('File Picker Error', e.message);
     }
@@ -37,10 +54,20 @@ export default function EnhanceContrastScreen() {
     if (!selectedFile) throw new Error('Please select a PDF file first');
     await ensureOutputDir();
     const outputPath = getOutputPath('contrast_enhanced.pdf');
-    onProgress(30, 'Enhancing contrast via MuPDF...');
-    await enhanceContrastPdf(selectedFile, outputPath, level);
-    onProgress(100, 'Done!');
-    return outputPath;
+    const eventEmitter = new NativeEventEmitter(NativeModules.MuPDFBridge);
+    const subscription = eventEmitter.addListener('MuPDFProgress', (event: { current: number; total: number }) => {
+      const pct = Math.round((event.current / event.total) * 100);
+      onProgress(pct, `Enhancing page ${event.current}/${event.total}...`);
+    });
+
+    try {
+      onProgress(0, 'Initializing contrast enhancement...');
+      await enhanceContrastPdf(selectedFile, outputPath, level);
+      onProgress(100, 'Done!');
+      return outputPath;
+    } finally {
+      subscription.remove();
+    }
   };
 
   return (
@@ -62,10 +89,18 @@ export default function EnhanceContrastScreen() {
 
       <View style={[styles.previewBox, { backgroundColor: cardBg }]}>
         <Text style={[styles.sectionLabel, { color: textColor, marginBottom: 8 }]}>👁 Preview</Text>
-        <View style={[styles.previewMock, { backgroundColor: isDark ? '#222' : '#fff' }]}>
-          <Text style={{ color: 'rgba(' + (isDark ? '255,255,255' : '0,0,0') + ',' + (0.2 + (level * 0.16)) + ')', fontSize: 16, fontWeight: 'bold' }}>
-            Sample faded text (Level {level})
-          </Text>
+        <View style={[styles.previewMock, { backgroundColor: isDark ? '#222' : '#fff', overflow: 'hidden' }]}>
+          {previewUri ? (
+            <Image 
+              source={{ uri: previewUri }} 
+              style={[StyleSheet.absoluteFill, { opacity: 0.5 + (level * 0.1) }]} 
+              resizeMode="contain" 
+            />
+          ) : (
+            <Text style={{ color: 'rgba(' + (isDark ? '255,255,255' : '0,0,0') + ',' + (0.2 + (level * 0.16)) + ')', fontSize: 16, fontWeight: 'bold' }}>
+              {loadingPreview ? 'Loading page...' : 'Sample faded text (Level ' + level + ')'}
+            </Text>
+          )}
         </View>
       </View>
 

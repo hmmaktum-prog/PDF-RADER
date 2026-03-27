@@ -27,6 +27,25 @@ export interface OfflineOcrOptions {
   onProgress?: (page: number, total: number, phase: 'rendering' | 'recognizing') => void;
 }
 
+export async function downloadOcrModel(language: string): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+  try {
+    return await PaddleOCRBridge.downloadModel(language);
+  } catch (e) {
+    console.warn('Failed to download model', e);
+    return false;
+  }
+}
+
+export async function isOcrModelDownloaded(language: string): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+  try {
+    return await PaddleOCRBridge.isModelDownloaded(language);
+  } catch (e) {
+    return false;
+  }
+}
+
 /**
  * Perform offline OCR on a PDF using PaddleOCR.
  * Steps:

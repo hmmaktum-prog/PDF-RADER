@@ -119,52 +119,61 @@ export default function RemovePagesScreen() {
   }, [selected, selectedFile]);
 
   return (
-    <ToolShell title="Remove Pages" subtitle="Select pages to delete" onExecute={handleAction} executeLabel={`🗑️ Remove ${selected.size} Pages`}>
-      <TouchableOpacity
-        style={[styles.pickBtn, { backgroundColor: cardBg, borderColor: accent }]}
-        onPress={handlePickFile}
-        activeOpacity={0.7}
-      >
-        <Text style={{ fontSize: 30, marginBottom: 6 }}>📁</Text>
-        <Text style={[styles.pickText, { color: textColor }]}>
-          {selectedFileName || 'Select PDF File'}
-        </Text>
-        <Text style={{ color: muted, fontSize: 12 }}>{selectedFile ? 'Tap to change file' : 'Tap to browse'}</Text>
-      </TouchableOpacity>
-
-      <View style={styles.headerRow}>
-        <Text style={[styles.label, { color: textColor }]}>🗑️ Select Pages to Remove</Text>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity onPress={() => setSelected(new Set(pages))}>
-            <Text style={{ color: '#007AFF', fontSize: 13, fontWeight: '600' }}>All</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setSelected(new Set())}>
-            <Text style={{ color: accent, fontSize: 13, fontWeight: '600' }}>Clear</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 4 }}>
-        <Text style={{ color: muted, fontSize: 12 }}>
-          Tap to toggle. Enable 'Select Range' to grab multiple.
-        </Text>
-        {Platform.OS !== 'web' && (
-          <TouchableOpacity 
-            style={[styles.rangeBtn, { backgroundColor: rangeMode ? accent + '22' : isDark ? '#333' : '#ddd', borderColor: rangeMode ? accent : 'transparent' }]} 
-            onPress={() => setRangeMode(!rangeMode)}
-          >
-            <Text style={{ color: rangeMode ? accent : textColor, fontSize: 11, fontWeight: '600' }}>
-              {rangeMode ? 'Range mode ON' : 'Select Range'}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
+    <ToolShell title="Remove Pages" subtitle="Select pages to delete" onExecute={handleAction} executeLabel={`🗑️ Remove ${selected.size} Pages`} disableScroll={true}>
       <FlatList
         data={pages}
         numColumns={4}
         keyExtractor={item => String(item)}
-        scrollEnabled={false}
+        ListHeaderComponent={(
+          <>
+            <TouchableOpacity
+              style={[styles.pickBtn, { backgroundColor: cardBg, borderColor: accent }]}
+              onPress={handlePickFile}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 30, marginBottom: 6 }}>📁</Text>
+              <Text style={[styles.pickText, { color: textColor }]}>
+                {selectedFileName || 'Select PDF File'}
+              </Text>
+              <Text style={{ color: muted, fontSize: 12 }}>{selectedFile ? 'Tap to change file' : 'Tap to browse'}</Text>
+            </TouchableOpacity>
+
+            <View style={styles.headerRow}>
+              <Text style={[styles.label, { color: textColor }]}>🗑️ Select Pages to Remove</Text>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity onPress={() => setSelected(new Set(pages))}>
+                  <Text style={{ color: '#007AFF', fontSize: 13, fontWeight: '600' }}>All</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setSelected(new Set())}>
+                  <Text style={{ color: accent, fontSize: 13, fontWeight: '600' }}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 4 }}>
+              <Text style={{ color: muted, fontSize: 12 }}>
+                Tap to toggle. Enable 'Select Range' to grab multiple.
+              </Text>
+              {Platform.OS !== 'web' && (
+                <TouchableOpacity 
+                  style={[styles.rangeBtn, { backgroundColor: rangeMode ? accent + '22' : isDark ? '#333' : '#ddd', borderColor: rangeMode ? accent : 'transparent' }]} 
+                  onPress={() => setRangeMode(!rangeMode)}
+                >
+                  <Text style={{ color: rangeMode ? accent : textColor, fontSize: 11, fontWeight: '600' }}>
+                    {rangeMode ? 'Range mode ON' : 'Select Range'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </>
+        )}
+        ListFooterComponent={(
+          <Text style={{ color: muted, fontSize: 11, marginTop: 16, textAlign: 'center', marginBottom: 20 }}>
+            Desktop Tip: Use Shift+Click for ranges. Press Delete to execute.
+          </Text>
+        )}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+        columnWrapperStyle={{ gap: 8 }}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={[
@@ -175,16 +184,12 @@ export default function RemovePagesScreen() {
             onPress={() => togglePage(item)}
             activeOpacity={0.7}
           >
-            <Text style={{ fontSize: 20 }}>📄</Text>
+            <Text style={{ fontSize: 20, marginBottom: 2 }}>📄</Text>
             <Text style={{ color: selected.has(item) ? accent : textColor, fontSize: 13, fontWeight: 'bold' }}>{item}</Text>
             {selected.has(item) && <Text style={styles.crossIcon}>✕</Text>}
           </TouchableOpacity>
         )}
       />
-      
-      <Text style={{ color: muted, fontSize: 11, marginTop: 16, textAlign: 'center' }}>
-        Desktop Tip: Use Shift+Click for ranges. Press Delete to execute.
-      </Text>
     </ToolShell>
   );
 }

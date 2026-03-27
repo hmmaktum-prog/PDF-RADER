@@ -9,7 +9,7 @@ import {
   Alert,
   Switch,
 } from 'react-native';
-import JSZip from 'jszip';
+import { zip } from 'react-native-zip-archive';
 import * as FileSystem from 'expo-file-system/legacy';
 import ToolShell from '../components/ToolShell';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
@@ -19,17 +19,9 @@ import { pickSinglePdf } from '../utils/filePicker';
 import { usePreselectedFile } from '../hooks/usePreselectedFile';
 
 async function bundleDirAsZip(dirUri: string, zipUri: string): Promise<void> {
-  const zip = new JSZip();
-  const entries = await FileSystem.readDirectoryAsync(dirUri);
-  const pdfs = entries.filter((f) => f.toLowerCase().endsWith('.pdf')).sort();
-  for (const name of pdfs) {
-    const data = await FileSystem.readAsStringAsync(`${dirUri}/${name}`, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    zip.file(name, data, { base64: true });
-  }
-  const zipB64 = await zip.generateAsync({ type: 'base64', compression: 'DEFLATE', compressionOptions: { level: 6 } });
-  await FileSystem.writeAsStringAsync(zipUri, zipB64, { encoding: FileSystem.EncodingType.Base64 });
+  const sourcePath = dirUri.replace('file://', '');
+  const targetPath = zipUri.replace('file://', '');
+  await zip(sourcePath, targetPath);
 }
 
 type SplitMode = 'range' | 'count' | 'every';

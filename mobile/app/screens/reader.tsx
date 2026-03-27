@@ -2,31 +2,30 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Dimensions,
-  Image,
   Modal,
-  PanResponder,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
+  ScrollView,
+  TextInput,
+  FlatList,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
-import { PinchGestureHandler } from 'react-native-gesture-handler';
+import Pdf from 'react-native-pdf';
 import {
-  batchRenderPages,
   compressPdf,
-  getPageCount,
   imagesToPdf,
   invertColorsPdf,
   rotatePdf,
+  searchPdfText,
+  getPdfOutline,
 } from '../utils/nativeModules';
-import { ensureOutputDir, getOutputPath } from '../utils/outputPath';
+import { getOutputPath } from '../utils/outputPath';
 import { pickImages, pickSinglePdf } from '../utils/filePicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -47,40 +46,29 @@ export default function ReaderScreen() {
 
   const [pdfPath, setPdfPath] = useState<string>('');
   const [pageCount, setPageCount] = useState(0);
-  const [pages, setPages] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [mode, setMode] = useState<ReaderMode>('vertical');
-  const [search, setSearch] = useState('');
-  const [searchMatches, setSearchMatches] = useState<number[]>([]);
-  const [brightness, setBrightness] = useState(0);
   const [night, setNight] = useState(false);
-  const [scale, setScale] = useState(1);
   const [showTools, setShowTools] = useState(false);
-  const [showToc, setShowToc] = useState(false);
   const [bookmarks, setBookmarks] = useState<number[]>([]);
+  const [recentFiles, setRecentFiles] = useState<{ path: string; name: string; date: number }[]>([]);
+  
+  // Search state
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ page: number; hits: number }[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
-  const scrollRef = useRef<ScrollView>(null);
-  const horizontalScrollRef = useRef<ScrollView>(null);
+  // TOC state
+  const [showTOC, setShowTOC] = useState(false);
+  const [toc, setToc] = useState<any[]>([]);
+  const [isLoadingTOC, setIsLoadingTOC] = useState(false);
+  
+  const pdfRef = useRef<any>(null);
 
   const docKey = useMemo(() => (pdfPath ? pdfPath.replace(/[^\w]/g, '_') : 'none'), [pdfPath]);
   const lastPageKey = `${LAST_PAGE_PREFIX}${docKey}`;
   const bookmarkKey = `${BOOKMARK_PREFIX}${docKey}`;
-
-  const tocEntries = useMemo(() => {
-    if (!pageCount) return [];
-    const section = Math.max(1, Math.floor(pageCount / 4));
-    return [
-      { title: 'Cover', page: 1 },
-      { title: 'Chapter 1', page: Math.min(pageCount, 1 + section) },
-      { title: 'Chapter 2', page: Math.min(pageCount, 1 + section * 2) },
-      { title: 'Chapter 3', page: Math.min(pageCount, 1 + section * 3) },
-    ];
-  }, [pageCount]);
-
-  const persistLastRead = useCallback(async (page: number) => {
-    if (!pdfPath) return;
-    await AsyncStorage.setItem(lastPageKey, String(page));
-  }, [lastPageKey, pdfPath]);
 
   const loadReaderState = useCallback(async () => {
     if (!pdfPath) return;
@@ -98,90 +86,124 @@ export default function ReaderScreen() {
   }, [bookmarkKey]);
 
   const openPdf = useCallback(async (inputPath: string) => {
-    await ensureOutputDir();
     setPdfPath(inputPath);
-    const total = await getPageCount(inputPath);
-    setPageCount(total);
-    const outputDir = getOutputPath('render_cache');
-    await FileSystem.makeDirectoryAsync(outputDir, { intermediates: true }).catch(() => {});
-    const rendered = await batchRenderPages(inputPath, outputDir, 'png', 85);
-    setPages(rendered);
+    // Add to recent files
+    const name = inputPath.split('/').pop() || 'Document.pdf';
+    const newItem = { path: inputPath, name, date: Date.now() };
+    
+    try {
+      const saved = await AsyncStorage.getItem('reader:recentFiles');
+      let list = saved ? JSON.parse(saved) : [];
+      // Remove dupe and limit to 10
+      list = [newItem, ...list.filter((f: any) => f.path !== inputPath)].slice(0, 10);
+      setRecentFiles(list);
+      await AsyncStorage.setItem('reader:recentFiles', JSON.stringify(list));
+    } catch (e) {
+      console.warn('Failed to save recent files', e);
+    }
   }, []);
 
-  const importPdfOrImage = useCallback(async () => {
-    Alert.alert('Open File', 'Choose input type', [
-      {
-        text: 'PDF',
-        onPress: async () => {
-          const file = await pickSinglePdf();
-          if (file?.path) await openPdf(file.path);
-        },
-      },
-      {
-        text: 'Image(s)',
-        onPress: async () => {
-          const images = await pickImages();
-          if (!images.length) return;
-          const outPdf = getOutputPath(`import_${Date.now()}.pdf`);
-            await imagesToPdf(
-              images.map((img) => ({ uri: img.path, rotation: 0 })),
-              outPdf,
-              'A4',
-              'portrait',
-              8
-            );
-          await openPdf(outPdf);
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+  const loadRecentFiles = useCallback(async () => {
+    try {
+      const saved = await AsyncStorage.getItem('reader:recentFiles');
+      if (saved) setRecentFiles(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  const clearRecentFiles = useCallback(async () => {
+    setRecentFiles([]);
+    await AsyncStorage.removeItem('reader:recentFiles');
+  }, []);
+
+  const performSearch = useCallback(async () => {
+    if (!searchQuery.trim() || !pdfPath) return;
+    setIsSearching(true);
+    try {
+      const results = await searchPdfText(pdfPath, searchQuery);
+      setSearchResults(results);
+    } catch (e) {
+      Alert.alert('Search Error', String(e));
+    } finally {
+      setIsSearching(false);
+    }
+  }, [pdfPath, searchQuery]);
+
+  const loadTOC = useCallback(async () => {
+    if (!pdfPath) return;
+    setIsLoadingTOC(true);
+    setShowTOC(true);
+    try {
+      const outline = await getPdfOutline(pdfPath);
+      setToc(outline);
+    } catch (e) {
+      console.warn('Failed to load TOC', e);
+      setToc([]);
+    } finally {
+      setIsLoadingTOC(false);
+    }
+  }, [pdfPath]);
+
+  const importPdf = useCallback(async () => {
+    const file = await pickSinglePdf();
+    if (file?.path) await openPdf(file.path);
+  }, [openPdf]);
+
+  const importImages = useCallback(async () => {
+    const images = await pickImages();
+    if (!images.length) return;
+    const outPdf = getOutputPath(`import_${Date.now()}.pdf`);
+    await imagesToPdf(
+      images.map((img) => ({ uri: img.path, rotation: 0 })),
+      outPdf,
+      'A4',
+      'portrait',
+      8
+    );
+    await openPdf(outPdf);
   }, [openPdf]);
 
   useEffect(() => {
-    (async () => {
-      if (params.uri) {
-        await openPdf(String(params.uri));
-      } else {
-        await importPdfOrImage();
-      }
-    })().catch((error) => Alert.alert('Reader error', String(error?.message || error)));
-  }, [importPdfOrImage, openPdf, params.uri]);
+    loadRecentFiles();
+    if (params.uri) {
+      openPdf(String(params.uri)).catch(e => Alert.alert('Reader error', String(e)));
+    }
+  }, [params.uri]);
 
   useEffect(() => {
     loadReaderState().catch(() => {});
   }, [loadReaderState]);
 
   useEffect(() => {
-    persistLastRead(currentPage).catch(() => {});
-  }, [currentPage, persistLastRead]);
+    if (pdfPath && currentPage) {
+      AsyncStorage.setItem(lastPageKey, String(currentPage)).catch(() => {});
+    }
+  }, [currentPage, lastPageKey, pdfPath]);
 
   const jumpToPage = useCallback((page: number) => {
     const safe = Math.min(Math.max(1, page), Math.max(1, pageCount));
     setCurrentPage(safe);
-    if (mode === 'horizontal') {
-      horizontalScrollRef.current?.scrollTo({ x: (safe - 1) * SCREEN_WIDTH, animated: true });
-    } else if (mode === 'vertical') {
-      scrollRef.current?.scrollTo({ y: (safe - 1) * 520, animated: true });
+    pdfRef.current?.setPage(safe);
+  }, [pageCount]);
+
+  const [isInverting, setIsInverting] = useState(false);
+  const [annoMode, setAnnoMode] = useState<'none' | 'highlight' | 'underline'>('none');
+
+  const handleSmartInvert = useCallback(async () => {
+    if (!pdfPath) return;
+    setIsInverting(true);
+    try {
+      const outPath = getOutputPath(`inverted_${Date.now()}.pdf`);
+      // We use the already implemented native invertColorsPdf
+      await invertColorsPdf(pdfPath, outPath);
+      setPdfPath(outPath);
+      setNight(true);
+      Alert.alert('Smart Night Mode', 'Colors have been intelligently inverted for better reading.');
+    } catch (e) {
+      Alert.alert('Inversion Error', 'Could not apply smart inversion.');
+    } finally {
+      setIsInverting(false);
     }
-  }, [mode, pageCount]);
-
-  const verticalNavResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderMove: (_, gesture) => {
-      const ratio = Math.min(1, Math.max(0, (gesture.moveY - 100) / 420));
-      const page = Math.max(1, Math.round(ratio * pageCount));
-      jumpToPage(page);
-    },
-  }), [jumpToPage, pageCount]);
-
-  const horizontalNavResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderMove: (_, gesture) => {
-      const ratio = Math.min(1, Math.max(0, gesture.moveX / SCREEN_WIDTH));
-      const page = Math.max(1, Math.round(ratio * pageCount));
-      jumpToPage(page);
-    },
-  }), [jumpToPage, pageCount]);
+  }, [pdfPath]);
 
   const toggleBookmark = useCallback(async () => {
     const exists = bookmarks.includes(currentPage);
@@ -190,36 +212,6 @@ export default function ReaderScreen() {
       : [...bookmarks, currentPage].sort((a, b) => a - b);
     await saveBookmarks(next);
   }, [bookmarks, currentPage, saveBookmarks]);
-
-  const runSearch = useCallback((query: string) => {
-    setSearch(query);
-    if (!query.trim()) {
-      setSearchMatches([]);
-      return;
-    }
-    const q = query.toLowerCase();
-    const hits: number[] = [];
-    for (let page = 1; page <= pageCount; page += 1) {
-      const simulatedText = `page ${page} chapter ${(page % 4) + 1}`;
-      if (simulatedText.includes(q)) hits.push(page);
-    }
-    setSearchMatches(hits);
-    if (hits.length) jumpToPage(hits[0]);
-  }, [jumpToPage, pageCount]);
-
-  const applyToolAction = useCallback(async (tool: 'compress' | 'rotate' | 'invert') => {
-    if (!pdfPath) return;
-    try {
-      const outPath = getOutputPath(`${tool}_${Date.now()}.pdf`);
-      if (tool === 'compress') await compressPdf(pdfPath, outPath, 'Balanced', 70, 100, false);
-      if (tool === 'rotate') await rotatePdf(pdfPath, outPath, 90, 'all');
-      if (tool === 'invert') await invertColorsPdf(pdfPath, outPath);
-      await openPdf(outPath);
-      setShowTools(false);
-    } catch (error: any) {
-      Alert.alert('Tool failed', String(error?.message || error));
-    }
-  }, [openPdf, pdfPath]);
 
   const executeTool = useCallback((route: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -242,7 +234,6 @@ export default function ReaderScreen() {
     })).filter(section => section.data.length > 0);
   }, []);
 
-  const imageStyle = useMemo(() => ({ transform: [{ scale }] }), [scale]);
   const bg = night ? '#000000' : '#f2f4fa';
   const text = night ? '#ffffff' : '#111111';
 
@@ -251,74 +242,169 @@ export default function ReaderScreen() {
       <StatusBar barStyle={night ? 'light-content' : 'dark-content'} />
       <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
         <TouchableOpacity onPress={() => router.back()}><Text style={[styles.topBtn, { color: text }]}>Back</Text></TouchableOpacity>
-        <Text style={[styles.title, { color: text }]}>Reader {currentPage}/{Math.max(1, pageCount)}</Text>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={[styles.title, { color: text }]}>Reader {currentPage}/{Math.max(1, pageCount)}</Text>
+          <Text style={{ fontSize: 10, color: night ? '#666' : '#999' }} numberOfLines={1}>
+            {pdfPath.split('/').pop()}
+          </Text>
+        </View>
         <TouchableOpacity onPress={() => setShowTools(true)}><Text style={[styles.topBtn, { color: text }]}>Tools</Text></TouchableOpacity>
       </View>
 
       <View style={styles.controls}>
-        <TouchableOpacity onPress={() => setMode('book')} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>Book</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setMode('vertical')} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>Vertical</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setMode('horizontal')} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>Horizontal</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setNight((v) => !v)} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>{night ? 'Light' : 'Night'}</Text></TouchableOpacity>
-        <TouchableOpacity onPress={toggleBookmark} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>{bookmarks.includes(currentPage) ? 'Unmark' : 'Bookmark'}</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowSearch(true)} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>🔍 Search</Text></TouchableOpacity>
+        <TouchableOpacity onPress={loadTOC} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>📖 TOC</Text></TouchableOpacity>
+        <TouchableOpacity 
+          onPress={() => setAnnoMode(annoMode === 'highlight' ? 'none' : 'highlight')} 
+          style={[styles.controlBtn, { backgroundColor: annoMode === 'highlight' ? '#FFD60A' : night ? '#222' : '#ffffff' }]}
+        >
+          <Text style={{ color: annoMode === 'highlight' ? '#000' : text }}>✏️ High</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={() => setAnnoMode(annoMode === 'underline' ? 'none' : 'underline')} 
+          style={[styles.controlBtn, { backgroundColor: annoMode === 'underline' ? '#32D74B' : night ? '#222' : '#ffffff' }]}
+        >
+          <Text style={{ color: annoMode === 'underline' ? '#000' : text }}>下 Under</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={handleSmartInvert} 
+          disabled={isInverting}
+          style={[styles.controlBtn, { backgroundColor: night ? '#444' : '#ffffff', borderColor: '#007AFF', borderWidth: night ? 0 : 1 }]}
+        >
+          <Text style={{ color: text }}>{isInverting ? '...' : '✨ Smart Night'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setNight((v) => !v)} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>{night ? '☀️' : '🌙'}</Text></TouchableOpacity>
+        <TouchableOpacity onPress={toggleBookmark} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>{bookmarks.includes(currentPage) ? '🔖' : '📑'}</Text></TouchableOpacity>
       </View>
-
-
 
       <View style={styles.readerWrap}>
-        {mode === 'book' && (
-          <View style={styles.bookMode}>
-            <TouchableOpacity onPress={() => jumpToPage(currentPage - 1)} style={[styles.flipBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>◀</Text></TouchableOpacity>
-            <PinchGestureHandler onGestureEvent={(e: any) => setScale(Math.min(3, Math.max(1, e.nativeEvent.scale)))}>
-              <View style={styles.bookPage}>
-                {pages[currentPage - 1] ? <Image source={{ uri: pages[currentPage - 1] }} style={[styles.pageImage, imageStyle]} resizeMode="contain" /> : <Text>No page render</Text>}
+        {pdfPath ? (
+          <Pdf
+            ref={pdfRef}
+            source={{ uri: pdfPath }}
+            onLoadComplete={(numberOfPages) => setPageCount(numberOfPages)}
+            onPageChanged={(page) => setCurrentPage(page)}
+            onError={(error) => Alert.alert('PDF Error', String(error))}
+            trustAllCerts={false}
+            horizontal={mode === 'horizontal' || mode === 'book'}
+            enablePaging={mode === 'book' || mode === 'horizontal'}
+            style={[styles.pdf, { backgroundColor: night ? '#1a1a1a' : '#fff' }]}
+            fitPolicy={0}
+            spacing={10}
+            enableAnnotationRendering={true}
+          />
+        ) : (
+          <View style={[styles.emptyState, { backgroundColor: bg }]}>
+            <View style={styles.emptyHero}>
+              <Text style={{ fontSize: 60, marginBottom: 16 }}>📚</Text>
+              <Text style={[styles.emptyTitle, { color: text }]}>PDF Reader</Text>
+              <Text style={{ color: night ? '#888' : '#666', marginBottom: 24, textAlign: 'center' }}>
+                Open a document to start reading and managing your PDFs.
+              </Text>
+              
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity onPress={importPdf} style={[styles.heroBtn, { backgroundColor: '#007AFF' }]}>
+                  <Text style={{ color: '#fff', fontWeight: 'bold' }}>📂 Open PDF</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={importImages} style={[styles.heroBtn, { backgroundColor: '#34C759' }]}>
+                  <Text style={{ color: '#fff', fontWeight: 'bold' }}>📸 From Images</Text>
+                </TouchableOpacity>
               </View>
-            </PinchGestureHandler>
-            <TouchableOpacity onPress={() => jumpToPage(currentPage + 1)} style={[styles.flipBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>▶</Text></TouchableOpacity>
-          </View>
-        )}
-
-        {mode === 'vertical' && (
-          <View style={styles.flexRow}>
-            <ScrollView ref={scrollRef} style={styles.flex} onMomentumScrollEnd={(e) => setCurrentPage(Math.max(1, Math.round(e.nativeEvent.contentOffset.y / 520) + 1))}>
-              {pages.map((uri, idx) => (
-                <PinchGestureHandler key={uri + idx} onGestureEvent={(e: any) => setScale(Math.min(3, Math.max(1, e.nativeEvent.scale)))}>
-                  <View style={[styles.pageCard, { backgroundColor: night ? '#1a1a1a' : '#fff' }]}>
-                    <Image source={{ uri }} style={[styles.pageImage, imageStyle]} resizeMode="contain" />
-                    <Text style={[styles.pageNo, { color: text }]}>Page {idx + 1}</Text>
-                  </View>
-                </PinchGestureHandler>
-              ))}
-            </ScrollView>
-            <View style={styles.rightNav} {...verticalNavResponder.panHandlers}>
-              <View style={[styles.dragThumb, { top: `${((currentPage - 1) / Math.max(1, pageCount - 1)) * 94}%` as any }]} />
             </View>
-          </View>
-        )}
 
-        {mode === 'horizontal' && (
-          <View style={styles.flex}>
-            <ScrollView
-              ref={horizontalScrollRef}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={(e) => setCurrentPage(Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH) + 1)}
-            >
-              {pages.map((uri, idx) => (
-                <View key={uri + idx} style={styles.horizontalPage}>
-                  <PinchGestureHandler onGestureEvent={(e: any) => setScale(Math.min(3, Math.max(1, e.nativeEvent.scale)))}>
-                    <Image source={{ uri }} style={[styles.pageImage, imageStyle]} resizeMode="contain" />
-                  </PinchGestureHandler>
+            {recentFiles.length > 0 && (
+              <View style={styles.recentSection}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <Text style={[styles.sectionTitle, { color: text }]}>Recent Files</Text>
+                  <TouchableOpacity onPress={clearRecentFiles}><Text style={{ color: '#FF3B30', fontSize: 12 }}>Clear All</Text></TouchableOpacity>
                 </View>
-              ))}
-            </ScrollView>
-            <View style={styles.bottomNav} {...horizontalNavResponder.panHandlers}>
-              <View style={[styles.bottomThumb, { left: `${((currentPage - 1) / Math.max(1, pageCount - 1)) * 94}%` as any }]} />
-            </View>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {recentFiles.map((f, i) => (
+                    <TouchableOpacity key={i} onPress={() => openPdf(f.path)} style={[styles.recentItem, { backgroundColor: night ? '#1a1a1a' : '#fff' }]}>
+                      <Text style={{ fontSize: 24, marginRight: 12 }}>📄</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.recentName, { color: text }]} numberOfLines={1}>{f.name}</Text>
+                        <Text style={{ color: '#888', fontSize: 11 }}>{new Date(f.date).toLocaleDateString()}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
         )}
       </View>
+
+      {/* Search Modal */}
+      <Modal visible={showSearch} animationType="fade" transparent>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.searchContainer, { backgroundColor: night ? '#1a1a1a' : '#fff' }]}>
+            <View style={styles.searchHeader}>
+              <TextInput
+                style={[styles.searchInput, { backgroundColor: night ? '#333' : '#f0f0f0', color: text }]}
+                placeholder="Search text in document..."
+                placeholderTextColor="#888"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onSubmitEditing={performSearch}
+                autoFocus
+              />
+              <TouchableOpacity onPress={() => setShowSearch(false)} style={{ marginLeft: 12 }}><Text style={{ color: '#007AFF', fontWeight: 'bold' }}>Close</Text></TouchableOpacity>
+            </View>
+            
+            {isSearching ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ color: text }}>Searching...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={searchResults}
+                keyExtractor={(item, i) => String(i)}
+                renderItem={({ item }) => (
+                  <TouchableOpacity 
+                    onPress={() => { jumpToPage(item.page); setShowSearch(false); }}
+                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: night ? '#333' : '#eee' }}
+                  >
+                    <Text style={{ color: text, fontWeight: 'bold' }}>Page {item.page}</Text>
+                    <Text style={{ color: '#888', fontSize: 12 }}>{item.hits} matches found</Text>
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#888', marginTop: 40 }}>{searchQuery ? 'No results found' : 'Type to search'}</Text>}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* TOC Modal */}
+      <Modal visible={showTOC} animationType="slide" transparent>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.tocContainer, { backgroundColor: night ? '#1a1a1a' : '#fff' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: text }]}>Table of Contents</Text>
+              <TouchableOpacity onPress={() => setShowTOC(false)}><Text style={{ color: '#007AFF', fontWeight: 'bold' }}>Close</Text></TouchableOpacity>
+            </View>
+            {isLoadingTOC ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text style={{ color: text }}>Loading TOC...</Text></View>
+            ) : (
+              <FlatList
+                data={toc}
+                keyExtractor={(item, i) => String(i)}
+                renderItem={({ item }) => (
+                  <TouchableOpacity 
+                    onPress={() => { jumpToPage(item.page); setShowTOC(false); }}
+                    style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: night ? '#333' : '#eee' }}
+                  >
+                    <Text style={{ color: text }}>{item.title}</Text>
+                    <Text style={{ color: '#007AFF', fontSize: 11 }}>Page {item.page}</Text>
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#888', marginTop: 40 }}>No outline available for this PDF.</Text>}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <Modal transparent visible={showTools} animationType="slide">
         <View style={styles.modalBackdrop}>
@@ -335,11 +421,7 @@ export default function ReaderScreen() {
                   <Text style={[styles.modalSectionLabel, { color: night ? '#888' : '#777' }]}>{section.title.toUpperCase()}</Text>
                   <View style={styles.toolsGrid}>
                     {section.data.map(tool => (
-                      <TouchableOpacity
-                        key={tool.id}
-                        onPress={() => executeTool(tool.route)}
-                        activeOpacity={0.7}
-                      >
+                      <TouchableOpacity key={tool.id} onPress={() => executeTool(tool.route)} activeOpacity={0.7}>
                         <View style={[styles.toolCard, { borderColor: night ? '#333' : '#eee', backgroundColor: night ? '#222' : '#fafafa' }]}>
                           <LinearGradient colors={tool.grad} style={styles.toolIconBg}>
                             <Text style={{ fontSize: 24 }}>{tool.icon}</Text>
@@ -362,49 +444,36 @@ export default function ReaderScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
-  flexRow: { flex: 1, flexDirection: 'row' },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8, alignItems: 'center' },
   topBtn: { fontWeight: '600', fontSize: 15 },
   title: { fontSize: 15, fontWeight: '700' },
   controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 10, paddingBottom: 8 },
-  controlBtn: { backgroundColor: '#ffffff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
-  searchBlock: { paddingHorizontal: 10, paddingBottom: 8 },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  searchInput: { flex: 1, backgroundColor: '#ffffff', borderRadius: 8, paddingHorizontal: 10, height: 40 },
-  searchHint: { fontSize: 11, marginTop: 4, lineHeight: 15 },
-  metaText: { fontSize: 12, color: '#444' },
-  toc: { marginHorizontal: 10, borderRadius: 10, backgroundColor: '#ffffff', padding: 10, marginBottom: 8 },
-  tocItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  readerWrap: { flex: 1 },
-  bookMode: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  flipBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', marginHorizontal: 8 },
-  bookPage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  pageCard: { marginHorizontal: 10, marginBottom: 12, borderRadius: 10, backgroundColor: '#fff', padding: 8 },
-  pageImage: { width: SCREEN_WIDTH - 24, height: 500, alignSelf: 'center' },
-  pageNo: { textAlign: 'center', fontSize: 12, marginTop: 4 },
-  rightNav: { width: 28, marginVertical: 16, marginRight: 6, borderRadius: 14, backgroundColor: '#00000022' },
-  dragThumb: { position: 'absolute', left: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: '#007AFF' },
-  horizontalPage: { width: SCREEN_WIDTH, justifyContent: 'center', alignItems: 'center' },
-  bottomNav: { height: 24, marginHorizontal: 16, marginBottom: 10, borderRadius: 12, backgroundColor: '#00000022' },
-  bottomThumb: { position: 'absolute', top: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#007AFF' },
-  bottomControls: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8 },
-  brightnessBar: { flex: 1, height: 8, borderRadius: 4, backgroundColor: '#00000022', overflow: 'hidden' },
-  brightnessFill: { height: 8, backgroundColor: '#ffb703' },
-  brightnessOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000' },
+  controlBtn: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
+  readerWrap: { flex: 1, backgroundColor: '#ececec' },
+  emptyState: { flex: 1, padding: 20 },
+  emptyHero: { alignItems: 'center', marginTop: 60, marginBottom: 40 },
+  emptyTitle: { fontSize: 24, fontWeight: '800', marginBottom: 8 },
+  heroBtn: { paddingHorizontal: 20, paddingVertical: 14, borderRadius: 12 },
+  recentSection: { flex: 1 },
+  sectionTitle: { fontSize: 16, fontWeight: '700' },
+  recentItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, marginBottom: 8 },
+  recentName: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
+  pdf: { flex: 1, width: SCREEN_WIDTH },
   modalBackdrop: { flex: 1, backgroundColor: '#000000a0', justifyContent: 'flex-end' },
   modalDocCard: { height: '80%', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 16 },
+  searchContainer: { height: '90%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  searchHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  searchInput: { flex: 1, height: 44, borderRadius: 22, paddingHorizontal: 20, fontSize: 16 },
+  tocContainer: { height: '80%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#00000015' },
   modalTitle: { fontSize: 18, fontWeight: '800' },
   modalSectionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.2, marginBottom: 12 },
   toolsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   toolCard: {
-    width: (SCREEN_WIDTH - 32 - 12 - 12) / 3, // 3 cols
+    width: (SCREEN_WIDTH - 32 - 12 - 12) / 3,
     alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4,
     borderRadius: 16, borderWidth: 1,
   },
-  toolIconBg: {
-    width: 44, height: 44, borderRadius: 22,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
-  },
+  toolIconBg: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   toolCardName: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
 });

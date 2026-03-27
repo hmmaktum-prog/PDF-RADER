@@ -36,7 +36,7 @@ if [[ ! -d "$ANDROID_NDK_ROOT" ]]; then
   echo "NDK ready."
 fi
 
-mkdir -p "$SRC_ROOT" "$THIRD_PARTY/qpdf/libs" "$THIRD_PARTY/mupdf/libs"
+mkdir -p "$SRC_ROOT" "$THIRD_PARTY/qpdf/libs" "$THIRD_PARTY/mupdf/libs" "$THIRD_PARTY/paddle-lite/libs"
 
 # ── Clone QPDF + libjpeg (if not present) ────────────────────────────────────
 echo ""

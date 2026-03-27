@@ -199,12 +199,12 @@ const withCustomNativeBuild = (config) => {
       if (isKts) {
         contents = contents.replace(
           /android\s*\{/,
-          `android {\n    sourceSets[\"main\"].jniLibs.srcDirs += listOf(\n        \"\${projectDir}/../../native/third_party/qpdf/libs\",\n        \"\${projectDir}/../../native/third_party/mupdf/libs\"\n    )`
+          `android {\n    sourceSets[\"main\"].jniLibs.srcDirs += listOf(\n        \"\${projectDir}/../../native/third_party/qpdf/libs\",\n        \"\${projectDir}/../../native/third_party/mupdf/libs\",\n        \"\${projectDir}/../../native/third_party/paddle-lite/libs\"\n    )`
         );
       } else {
         contents = contents.replace(
           /android\s*\{/,
-          `android {\n    sourceSets { main { jniLibs.srcDirs += [\"\${projectDir}/../../native/third_party/qpdf/libs\", \"\${projectDir}/../../native/third_party/mupdf/libs\"] } }`
+          `android {\n    sourceSets { main { jniLibs.srcDirs += [\"\${projectDir}/../../native/third_party/qpdf/libs\", \"\${projectDir}/../../native/third_party/mupdf/libs\", \"\${projectDir}/../../native/third_party/paddle-lite/libs\"] } }`
         );
       }
     }
@@ -216,12 +216,12 @@ const withCustomNativeBuild = (config) => {
       if (isKts) {
         contents = contents.replace(
           /android\s*\{/,
-          `android {\n    packaging {\n        jniLibs {\n            pickFirsts += listOf(\n                \"lib/arm64-v8a/libqpdf.so\",\n                \"lib/x86_64/libqpdf.so\",\n                \"lib/arm64-v8a/libmupdf.so\",\n                \"lib/x86_64/libmupdf.so\",\n                \"lib/arm64-v8a/libjpeg.so\",\n                \"lib/x86_64/libjpeg.so\"\n            )\n        }\n    }`
+          `android {\n    packaging {\n        jniLibs {\n            pickFirsts += listOf(\n                \"lib/arm64-v8a/libqpdf.so\",\n                \"lib/x86_64/libqpdf.so\",\n                \"lib/arm64-v8a/libmupdf.so\",\n                \"lib/x86_64/libmupdf.so\",\n                \"lib/arm64-v8a/libjpeg.so\",\n                \"lib/x86_64/libjpeg.so\",\n                \"lib/arm64-v8a/libpaddle_light_api_shared.so\",\n                \"lib/x86_64/libpaddle_light_api_shared.so\"\n            )\n        }\n    }`
         );
       } else {
         contents = contents.replace(
           /android\s*\{/,
-          `android {\n    packagingOptions {\n        pickFirst 'lib/arm64-v8a/libqpdf.so'\n        pickFirst 'lib/x86_64/libqpdf.so'\n        pickFirst 'lib/arm64-v8a/libmupdf.so'\n        pickFirst 'lib/x86_64/libmupdf.so'\n        pickFirst 'lib/arm64-v8a/libjpeg.so'\n        pickFirst 'lib/x86_64/libjpeg.so'\n    }`
+          `android {\n    packagingOptions {\n        pickFirst 'lib/arm64-v8a/libqpdf.so'\n        pickFirst 'lib/x86_64/libqpdf.so'\n        pickFirst 'lib/arm64-v8a/libmupdf.so'\n        pickFirst 'lib/x86_64/libmupdf.so'\n        pickFirst 'lib/arm64-v8a/libjpeg.so'\n        pickFirst 'lib/x86_64/libjpeg.so'\n        pickFirst 'lib/arm64-v8a/libpaddle_light_api_shared.so'\n        pickFirst 'lib/x86_64/libpaddle_light_api_shared.so'\n    }`
         );
       }
     }

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
 import ToolShell from '../components/ToolShell';
 import { useAppTheme } from '../context/ThemeContext';
-import { whiteningPdf, geminiAiWhitening } from '../utils/nativeModules';
+import { whiteningPdf, geminiAiWhitening, renderPageToImage } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { usePreselectedFile } from '../hooks/usePreselectedFile';
+import { NativeEventEmitter, NativeModules } from 'react-native';
 
 const LEVELS = [
   { val: 1, label: 'Light', desc: 'Subtle, preserves original tone' },
@@ -23,11 +24,26 @@ export default function WhitenerScreen() {
 
   const [strength, setStrength] = useState(2);
   const [useAI, setUseAI] = useState(false);
+  const [previewUri, setPreviewUri] = useState('');
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const textColor = isDark ? '#fff' : '#000';
   const cardBg = isDark ? '#1e1e1e' : '#f0f0f0';
   const accent = '#007AFF';
   const muted = isDark ? '#888' : '#888';
+
+  const generatePreview = async (path: string) => {
+    setLoadingPreview(true);
+    try {
+      const out = getOutputPath(`preview_${Date.now()}.jpg`);
+      const ok = await renderPageToImage(path, 0, out, false);
+      if (ok) setPreviewUri('file://' + out);
+    } catch (e) {
+      console.warn('Preview failed', e);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
 
   const handlePickFile = async () => {
     try {
@@ -35,6 +51,7 @@ export default function WhitenerScreen() {
       if (!picked) return;
       setSelectedFile(picked.path);
       setSelectedFileName(picked.name);
+      await generatePreview(picked.path);
     } catch (e: any) {
       Alert.alert('File Picker Error', e.message);
     }
@@ -45,15 +62,25 @@ export default function WhitenerScreen() {
     await ensureOutputDir();
     const outputPath = getOutputPath('whitened_output.pdf');
 
-    if (useAI) {
-      onProgress(30, 'AI whitening via native bridge...');
-      await geminiAiWhitening(selectedFile, outputPath);
-    } else {
-      onProgress(35, 'Whitening background via MuPDF...');
-      await whiteningPdf(selectedFile, outputPath, strength);
+    const eventEmitter = new NativeEventEmitter(NativeModules.MuPDFBridge);
+    const subscription = eventEmitter.addListener('MuPDFProgress', (event: { current: number; total: number }) => {
+      const pct = Math.round((event.current / event.total) * 100);
+      onProgress(pct, `Whitening page ${event.current}/${event.total}...`);
+    });
+
+    try {
+      if (useAI) {
+        onProgress(0, 'Initializing AI whitening...');
+        await geminiAiWhitening(selectedFile, outputPath);
+      } else {
+        onProgress(0, 'Initializing standard whitening...');
+        await whiteningPdf(selectedFile, outputPath, strength);
+      }
+      onProgress(100, 'Done!');
+      return outputPath;
+    } finally {
+      subscription.remove();
     }
-    onProgress(100, 'Done!');
-    return outputPath;
   };
 
   return (
@@ -114,12 +141,29 @@ export default function WhitenerScreen() {
       )}
 
       <View style={[styles.previewRow, { backgroundColor: cardBg }]}>
-        <View style={[styles.previewBox, { backgroundColor: '#f5e8c0' }]}>
-          <Text style={{ color: '#5a4200', fontSize: 13, fontWeight: '600' }}>📜 Before</Text>
+        <View style={[styles.previewBox, { backgroundColor: '#f5e8c0', overflow: 'hidden' }]}>
+          {previewUri ? (
+            <Image source={{ uri: previewUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          ) : (
+             <Text style={{ color: '#5a4200', fontSize: 13, fontWeight: '600' }}>{loadingPreview ? '...' : '📜 Before'}</Text>
+          )}
+          <View style={styles.previewTag}><Text style={styles.tagText}>BEFORE</Text></View>
         </View>
         <Text style={{ fontSize: 20, color: accent }}>→</Text>
-        <View style={[styles.previewBox, { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#ddd' }]}>
-          <Text style={{ color: '#000', fontSize: 13, fontWeight: '600' }}>✨ After</Text>
+        <View style={[styles.previewBox, { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#ddd', overflow: 'hidden' }]}>
+          {previewUri ? (
+            <Image 
+              source={{ uri: previewUri }} 
+              style={[StyleSheet.absoluteFill, { opacity: 0.9 }]} 
+              resizeMode="cover" 
+              // Simulated whitening effect using grayscale + brightness if possible, 
+              // but standard Image doesn't support complex filters well on all platforms without extra libs.
+              // For now, we show the page to confirm the file.
+            />
+          ) : (
+            <Text style={{ color: '#000', fontSize: 13, fontWeight: '600' }}>✨ After</Text>
+          )}
+          <View style={[styles.previewTag, { backgroundColor: '#34C759' }]}><Text style={styles.tagText}>AFTER</Text></View>
         </View>
       </View>
 
@@ -134,5 +178,7 @@ const styles = StyleSheet.create({
   modeCard: { flex: 1, padding: 14, borderRadius: 12, borderWidth: 2, alignItems: 'center' },
   levelCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
   previewRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', padding: 16, borderRadius: 14, marginTop: 12 },
-  previewBox: { flex: 1, padding: 14, borderRadius: 10, alignItems: 'center', marginHorizontal: 8, height: 60, justifyContent: 'center' },
+  previewBox: { flex: 1, borderRadius: 10, alignItems: 'center', marginHorizontal: 8, height: 120, justifyContent: 'center' },
+  previewTag: { position: 'absolute', bottom: 4, right: 4, backgroundColor: '#FF9500', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  tagText: { color: '#fff', fontSize: 8, fontWeight: 'bold' },
 });

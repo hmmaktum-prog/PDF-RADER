@@ -52,10 +52,21 @@ export default function ResizeScreen() {
     if (!selectedFile) throw new Error('Please select a PDF file first');
     await ensureOutputDir();
     const outputPath = getOutputPath('resized_output.pdf');
+    
     const w = targetSize.id === 'Custom' ? parseInt(customW) : targetSize.w;
     const h = targetSize.id === 'Custom' ? parseInt(customH) : targetSize.h;
-    onProgress(35, `Resizing pages via QPDF (Scale: ${scale}%, Align: ${alignH}/${alignV})...`);
-    await resizePdf(selectedFile, outputPath, w, h, parseInt(scale), alignH, alignV);
+    
+    if (isNaN(w) || isNaN(h) || w <= 0 || h <= 0) {
+      throw new Error('Please enter valid positive numbers for page width and height.');
+    }
+
+    const parsedScale = parseInt(scale);
+    if (isNaN(parsedScale) || parsedScale <= 0 || parsedScale > 500) {
+      throw new Error('Please enter a valid content scale percentage between 1 and 500.');
+    }
+
+    onProgress(35, `Resizing pages via QPDF (Scale: ${parsedScale}%, Align: ${alignH}/${alignV})...`);
+    await resizePdf(selectedFile, outputPath, w, h, parsedScale, alignH, alignV);
     onProgress(100, 'Done!');
     return outputPath;
   };

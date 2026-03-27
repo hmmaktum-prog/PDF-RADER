@@ -29,12 +29,13 @@ object MuPDFBridge {
         highRes: Boolean = true
     ): Boolean
 
-    // Batch render all pages
+    // Batch render all pages with progress callback
     external fun batchRenderPages(
         inputPath: String,
         outputDirectory: String,
         format: String,
-        quality: Int
+        quality: Int,
+        progressCallback: ((Int, Int) -> Unit)? = null
     ): Boolean
 
     // Get page dimensions
@@ -43,35 +44,51 @@ object MuPDFBridge {
         pageNumber: Int
     ): FloatArray
 
-    // Convert to grayscale
+    // Convert to grayscale with progress
     external fun grayscalePdf(
         inputPath: String,
-        outputPath: String
+        outputPath: String,
+        progressCallback: ((Int, Int) -> Unit)? = null
     ): Boolean
 
-    // Remove backgrounds (whitening)
+    // Remove backgrounds (whitening) with progress
     external fun whiteningPdf(
         inputPath: String,
         outputPath: String,
-        strength: Int
+        strength: Int,
+        progressCallback: ((Int, Int) -> Unit)? = null
     ): Boolean
 
-    // Enhance contrast
+    // Enhance contrast with progress
     external fun enhanceContrastPdf(
         inputPath: String,
         outputPath: String,
-        level: Int
+        level: Int,
+        progressCallback: ((Int, Int) -> Unit)? = null
     ): Boolean
 
-    // Invert colors
+    // Invert colors with progress
     external fun invertColorsPdf(
         inputPath: String,
-        outputPath: String
+        outputPath: String,
+        progressCallback: ((Int, Int) -> Unit)? = null
     ): Boolean
 
-    // AI-assisted whitening
+    // AI-assisted whitening with progress
     external fun geminiAiWhitening(
         inputPath: String,
-        outputPath: String
+        outputPath: String,
+        progressCallback: ((Int, Int) -> Unit)? = null
     ): Boolean
+
+    // Search text and return JSON
+    external fun searchPdfText(
+        inputPath: String,
+        query: String
+    ): String
+
+    // Get table of contents and return JSON
+    external fun getPdfOutline(
+        inputPath: String
+    ): String
 }

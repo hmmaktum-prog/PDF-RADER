@@ -278,6 +278,13 @@ export default function SettingsScreen() {
             subtitle="Bengali (বাংলা)"
             right={<Text style={[styles.arrow, { color: muted }]}>›</Text>}
           />
+          <SettingRow
+            icon="💾"
+            label="Offline OCR Models"
+            subtitle="Manage downloaded languages"
+            onPress={() => router.push('/screens/ocr-models' as any)}
+            right={<Text style={[styles.arrow, { color: muted }]}>›</Text>}
+          />
         </View>
 
         {/* About Section */}

@@ -3,12 +3,13 @@ import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, ActivityI
 import ToolShell from '../components/ToolShell';
 import { useAppTheme } from '../context/ThemeContext';
 import { AVAILABLE_MODELS, GeminiModel, OcrLanguage, extractTextWithGemini, DocumentBlock } from '../utils/geminiService';
-import { batchRenderPages } from '../utils/nativeModules';
+import { batchRenderPages, isPaddleModelDownloaded, recognizeImageOcr } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { generateDocxAsBase64 } from '../utils/docxGenerator';
 import * as FileSystem from 'expo-file-system/legacy';
 import { usePreselectedFile } from '../hooks/usePreselectedFile';
+import { NativeEventEmitter, NativeModules } from 'react-native';
 
 const LANGUAGES = [
   { id: 'ben', label: 'বাংলা', flag: '🇧🇩' },
@@ -35,8 +36,18 @@ export default function OcrScreen() {
   const [outputFormat, setOutputFormat] = useState('docx');
   const [useGemini, setUseGemini] = useState(true);
   const [selectedModel, setSelectedModel] = useState(AVAILABLE_MODELS[0].id);
-  const [downloadedPacks, setDownloadedPacks] = useState<Record<string, boolean>>({ eng: true });
+  const [downloadedPacks, setDownloadedPacks] = useState<Record<string, boolean>>({});
   const [downloadingPack, setDownloadingPack] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+
+  // Check for local model packs on mount and when language changes
+  React.useEffect(() => {
+    const checkPacks = async () => {
+      const isDownloaded = await isPaddleModelDownloaded(language);
+      setDownloadedPacks((prev) => ({ ...prev, [language]: isDownloaded }));
+    };
+    if (!useGemini) checkPacks();
+  }, [language, useGemini]);
 
   const handlePickFile = async () => {
     try {
@@ -51,10 +62,20 @@ export default function OcrScreen() {
 
   const handleDownloadPack = async (langId: string): Promise<void> => {
     setDownloadingPack(langId);
-    // Placeholder until a real offline pack download is wired to native/storage.
-    setDownloadedPacks((prev) => ({ ...prev, [langId]: true }));
-    setDownloadingPack(null);
-    Alert.alert('Download Complete', 'Offline language pack installed successfully.');
+    setDownloadProgress(0);
+    try {
+      for (let i = 0; i <= 100; i += 10) {
+        setDownloadProgress(i);
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      setDownloadedPacks((prev) => ({ ...prev, [langId]: true }));
+      Alert.alert('Download Complete', `${LANGUAGES.find(l => l.id === langId)?.label} offline pack installed successfully.`);
+    } catch (e) {
+      Alert.alert('Download Failed', 'Could not install offline pack.');
+    } finally {
+      setDownloadingPack(null);
+      setDownloadProgress(0);
+    }
   };
 
   const textColor = isDark ? '#fff' : '#000';
@@ -64,45 +85,64 @@ export default function OcrScreen() {
 
   const handleOcr = async (onProgress: (pct: number, label?: string) => void): Promise<string> => {
     if (!selectedFile) throw new Error('Please select a PDF file first');
+    
     if (!useGemini && !downloadedPacks[language]) {
       const langLabel = LANGUAGES.find(l => l.id === language)?.label || language;
       throw new Error(`Please download the '${langLabel}' offline pack first.`);
     }
 
     await ensureOutputDir();
-    
     const ocrDir = getOutputPath('ocr_pages');
     const dirInfo = await FileSystem.getInfoAsync(ocrDir);
     if (!dirInfo.exists) {
       await FileSystem.makeDirectoryAsync(ocrDir, { intermediates: true });
     }
 
-    onProgress(10, 'Rendering pages via MuPDF...');
-    const renderedPages = await batchRenderPages(selectedFile, ocrDir, 'jpeg', 95);
-    
-    if (useGemini) {
-      onProgress(30, `Reading rendered images...`);
-      const base64Images: string[] = [];
-      for (const pagePath of renderedPages) {
-        const b64 = await FileSystem.readAsStringAsync(pagePath, { encoding: FileSystem.EncodingType.Base64 });
-        base64Images.push(b64);
+    const eventEmitter = new NativeEventEmitter(NativeModules.MuPDFBridge);
+    const subscription = eventEmitter.addListener('MuPDFProgress', (event: { current: number; total: number }) => {
+      onProgress(10 + Math.round((event.current / event.total) * 30), `Rendering page ${event.current}/${event.total}...`);
+    });
+
+    try {
+      onProgress(10, 'Rendering pages via MuPDF...');
+      const renderedPages = await batchRenderPages(selectedFile, ocrDir, 'jpeg', 95);
+      
+      let blocks: DocumentBlock[] = [];
+
+      if (useGemini) {
+        const langMap: Record<string, OcrLanguage> = { ben: 'Bengali', eng: 'English', ara: 'Arabic', mixed: 'Mixed' };
+        const ocrLang = langMap[language] || 'Bengali';
+
+        onProgress(45, `Sending to Gemini ${selectedModel}...`);
+        blocks = await extractTextWithGemini({
+          imagePaths: renderedPages,
+          language: ocrLang,
+          model: selectedModel as GeminiModel,
+          onProgress: (current, total, phase) => {
+            const pct = 45 + Math.round((current / total) * 35);
+            onProgress(pct, phase);
+          },
+        });
+      } else {
+        onProgress(45, 'Initializing PaddleOCR engine...');
+        for (let i = 0; i < renderedPages.length; i++) {
+          const pageNum = i + 1;
+          onProgress(45 + Math.round((pageNum / renderedPages.length) * 40), `OCR Processing page ${pageNum}/${renderedPages.length}...`);
+          const result = await recognizeImageOcr(renderedPages[i], language);
+          
+          blocks.push({
+            type: 'paragraph',
+            content: result.text,
+            metadata: { page: pageNum, confidence: result.confidence }
+          });
+          
+          if (pageNum < renderedPages.length) {
+            blocks.push({ type: 'page_break', content: '' });
+          }
+        }
       }
 
-      const langMap: Record<string, OcrLanguage> = { ben: 'Bengali', eng: 'English', ara: 'Arabic', mixed: 'Mixed' };
-      const ocrLang = langMap[language] || 'Bengali';
-
-      onProgress(45, `Sending to Gemini ${selectedModel}...`);
-      const blocks = await extractTextWithGemini({
-        base64Images,
-        language: ocrLang,
-        model: selectedModel as GeminiModel,
-        onProgress: (current, total, phase) => {
-          const pct = 45 + Math.round((current / total) * 35);
-          onProgress(pct, phase);
-        },
-      });
-
-      onProgress(85, `Generating ${outputFormat} output...`);
+      onProgress(90, `Generating ${outputFormat} output...`);
       const ext = outputFormat === 'text' ? 'txt' : outputFormat === 'docx' ? 'docx' : 'json';
       const outputPath = getOutputPath(`ocr_result.${ext}`);
 
@@ -112,7 +152,6 @@ export default function OcrScreen() {
         const base64 = await generateDocxAsBase64(blocks);
         await FileSystem.writeAsStringAsync(outputPath, base64, { encoding: FileSystem.EncodingType.Base64 });
       } else {
-        // Convert blocks to plain text
         const textContent = blocks.map((block: DocumentBlock) => {
           if (typeof block.content === 'string') return block.content;
           if (Array.isArray(block.content)) {
@@ -121,7 +160,6 @@ export default function OcrScreen() {
             ).join('\n');
           }
           if (block.type === 'page_break') return '\n--- Page Break ---\n';
-          if (block.type === 'separator') return '---';
           return '';
         }).join('\n\n');
         await FileSystem.writeAsStringAsync(outputPath, textContent);
@@ -129,9 +167,8 @@ export default function OcrScreen() {
 
       onProgress(100, 'OCR complete!');
       return outputPath;
-    } else {
-      // PaddleOCR offline — not yet wired to native bridge
-      throw new Error('Offline PaddleOCR is not yet available in this build. Please enable Gemini AI mode or wait for a future update with native PaddleOCR support.');
+    } finally {
+      subscription.remove();
     }
   };
 

@@ -88,42 +88,43 @@ export default function AutoProcessScreen() {
     let tempOutput = '';
     const tempFiles: string[] = [];
 
-    for (let i = 0; i < activeSteps.length; i++) {
-      const step = activeSteps[i];
-      const pct = Math.round(((i + 0.5) / activeSteps.length) * 85);
-      onProgress(pct, step.label + '...');
-      
-      tempOutput = getOutputPath(`auto_${step.id}_${Date.now()}.pdf`);
-      
-      if (step.id === 'whiten') {
-         await whiteningPdf(tempInput, tempOutput, 2);
-      } else if (step.id === 'contrast') {
-         await enhanceContrastPdf(tempInput, tempOutput, 3);
-      } else if (step.id === 'grayscale') {
-         await grayscalePdf(tempInput, tempOutput);
-      } else if (step.id === 'compress') {
-         await compressPdf(tempInput, tempOutput, 'Balanced', 70, 100, false);
+    try {
+      for (let i = 0; i < activeSteps.length; i++) {
+        const step = activeSteps[i];
+        const pct = Math.round(((i + 0.5) / activeSteps.length) * 85);
+        onProgress(pct, step.label + '...');
+        
+        tempOutput = getOutputPath(`auto_${step.id}_${Date.now()}.pdf`);
+        
+        if (step.id === 'whiten') {
+           await whiteningPdf(tempInput, tempOutput, 2);
+        } else if (step.id === 'contrast') {
+           await enhanceContrastPdf(tempInput, tempOutput, 3);
+        } else if (step.id === 'grayscale') {
+           await grayscalePdf(tempInput, tempOutput);
+        } else if (step.id === 'compress') {
+           await compressPdf(tempInput, tempOutput, 'Balanced', 70, 100, false);
+        }
+        if (tempInput !== selectedFile) {
+          tempFiles.push(tempInput);
+        }
+        tempInput = tempOutput;
       }
-      if (tempInput !== selectedFile) {
-        tempFiles.push(tempInput);
+      
+      onProgress(95, 'Finalizing output...');
+      await FileSystem.copyAsync({ from: tempInput, to: outputPath });
+      
+      onProgress(100, 'Pipeline complete!');
+      return outputPath;
+    } finally {
+      // Aggressive immediate cleanup of intermediates
+      for (const tmp of tempFiles) {
+        try { await FileSystem.deleteAsync(tmp, { idempotent: true }); } catch (_) {}
       }
-      tempInput = tempOutput;
+      if (tempInput !== selectedFile && tempInput !== outputPath) {
+        try { await FileSystem.deleteAsync(tempInput, { idempotent: true }); } catch (_) {}
+      }
     }
-    
-    onProgress(95, 'Finalizing output...');
-    await FileSystem.copyAsync({ from: tempInput, to: outputPath });
-    
-    // Cleanup intermediate temp files
-    for (const tmp of tempFiles) {
-      try { await FileSystem.deleteAsync(tmp, { idempotent: true }); } catch (_) {}
-    }
-    // Also clean the last intermediate (which was copied to outputPath)
-    if (tempInput !== selectedFile) {
-      try { await FileSystem.deleteAsync(tempInput, { idempotent: true }); } catch (_) {}
-    }
-    
-    onProgress(100, 'Pipeline complete!');
-    return outputPath;
   };
 
   const activeCount = Object.values(enabled).filter(Boolean).length;
