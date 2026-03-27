@@ -76,7 +76,7 @@ jobs:
             .native_src/libjpeg-turbo
             .native_src/qpdf
             .native_src/mupdf-1.28.0-source
-          key: native-src-all-v4
+          key: native-src-all-v3
           restore-keys: |
             native-src-all-
 
@@ -362,7 +362,7 @@ jobs:
           [[ -d "$SRC/qpdf/include" ]] && \
             cp -rn "$SRC/qpdf/include/." "$THIRD/qpdf/include/" 2>/dev/null || true
           [[ -d "$SRC/mupdf-1.28.0-source/include" ]] && \
-            cp -r "$SRC/mupdf-1.28.0-source/include/." \
+            cp -rn "$SRC/mupdf-1.28.0-source/include/." \
             "$THIRD/mupdf/include/" 2>/dev/null || true
           echo "✓ Headers copied"
 

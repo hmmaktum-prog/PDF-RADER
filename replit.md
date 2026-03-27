@@ -40,6 +40,15 @@ The app runs as a **web preview** in Replit using `expo start --web --port 5000`
 
 ### Known Bugs Fixed (2026-03-27 — EAS Build Fix)
 
+#### 10. `build-native-libs.yml` + `build_native_libraries.sh` — MuPDF version mismatch: headers 1.28.0 vs .so 1.27.2
+**Bug**: MuPDF headers in `third_party/mupdf/include/` were `v1.28.0` (set by `FZ_VERSION "1.28.0"` in `version.h`), but the build scripts were cloning and compiling MuPDF `1.27.2`. The `fz_new_context` macro passes `FZ_VERSION` to `fz_new_context_imp`, which performs a runtime version check — a mismatch between "1.28.0" (from headers) and "1.27.2" (from the compiled .so) would cause all MuPDF features to fail at runtime on the Android app. The `cp -rn` (no-overwrite) flag in the "Copy headers" step was silently keeping the mismatched 1.28.0 headers.
+**Fix**:
+- Updated `MUPDF_VERSION` to `"1.28.0"` in `scripts/build_native_libraries.sh`
+- Updated all `mupdf-1.27.2-source` references to `mupdf-1.28.0-source` in `.github/workflows/build-native-libs.yml`
+- Bumped cache key from `native-src-all-v3` → `v4` to force fresh source download
+- Changed `cp -rn` → `cp -r` for MuPDF header copy so headers always stay in sync with compiled .so version
+- **Action required**: Push to GitHub and trigger "Build & Save Native Libraries" workflow with `force=true` to rebuild .so files from MuPDF 1.28.0 source.
+
 #### 9. `qpdf_bridge.cpp` — QPDF API mismatch: `newDict()` / `getDict()` on QPDFPageObjectHelper
 **Bug**: The EAS build failed with `EAS_BUILD_UNKNOWN_GRADLE_ERROR` (Gradle/CMake/NDK compilation error). The QPDF headers in `third_party/qpdf/include/` are version `11.9.1+future` which removed the deprecated `newDict()` method (renamed to `newDictionary()`) and removed `getDict()` from `QPDFPageObjectHelper` (must go through `getObjectHandle().getDict()`). The code was still using the old API.
 **Errors**: `no member named 'newDict' in 'QPDFObjectHandle'` and `no member named 'getDict' in 'QPDFPageObjectHelper'`  
