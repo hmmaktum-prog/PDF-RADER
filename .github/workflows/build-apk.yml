@@ -1,0 +1,121 @@
+name: Direct Android APK Build
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# এই Workflow টি সরাসরি GitHub Actions-এর মাধ্যমে Android APK তৈরি করবে।
+# এর জন্য কোনো EAS quota বা queue-এর দরকার নেই।
+# বিল্ড শেষ হলে আপনি Action-এর "Artifacts" সেকশন থেকে `app-release.apk`
+# ডাউনলোড করতে পারবেন।
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+on:
+  workflow_dispatch:
+    inputs:
+      clean_prebuild:
+        description: 'Clean native Android project before build'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+  push:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+
+jobs:
+  build-apk:
+    name: "Build Android APK"
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Ckackout Code ────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # ── 2. Java Setup ───────────────────────────────────────────────────────
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # ── 3. pnpm Setup ───────────────────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      # ── 4. Node.js Setup ────────────────────────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      # ── 5. Cache & Install NDK (Required for Custom Native Bridge) ─────────
+      - name: Cache Android NDK r25b
+        id: cache-ndk
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.home }}/Android/Sdk/ndk/25.2.9519653
+          key: android-ndk-r25b-native-build
+
+      - name: Download Android NDK r25b
+        if: steps.cache-ndk.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/Android/Sdk/ndk
+          echo "NDK ডাউনলোড হচ্ছে (~1.5 GB) ..."
+          curl -L --progress-bar -o /tmp/ndk.zip "https://dl.google.com/android/repository/android-ndk-r25b-linux.zip"
+          unzip -q /tmp/ndk.zip -d ~/Android/Sdk/ndk
+          mv ~/Android/Sdk/ndk/android-ndk-r25b ~/Android/Sdk/ndk/25.2.9519653
+          rm -f /tmp/ndk.zip
+          echo "✓ NDK ready."
+
+      # ── 6. Check if Native .so Libraries Exist ──────────────────────────────
+      - name: Ensure .so files exist
+        run: |
+          ARM64_QPDF="mobile/native/third_party/qpdf/libs/arm64-v8a/libqpdf.so"
+          if [[ ! -f "$ARM64_QPDF" ]]; then
+            echo "ERROR: Native .so files (libqpdf.so, etc.) পাওয়া যায়নি।" >&2
+            echo "অনুগ্রহ করে প্রথমে Repository-তে 'Build & Save Native Libraries (Once)' অ্যাকশনটি রান করুন।" >&2
+            exit 1
+          fi
+          echo "✓ Native .so files present. Proceeding with APK build."
+
+      # ── 7. Install Dependencies ─────────────────────────────────────────────
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── 8. Expo Prebuild ────────────────────────────────────────────────────
+      - name: Generate Android project (Expo Prebuild)
+        working-directory: mobile
+        run: |
+          if [[ "${{ github.event.inputs.clean_prebuild }}" == "true" || "${{ github.event_name }}" == "push" ]]; then
+            npx expo prebuild --platform android --clean
+          else
+            npx expo prebuild --platform android
+          fi
+
+      # ── 9. Build APK (Gradle) ───────────────────────────────────────────────
+      - name: Build Android APK (Release)
+        working-directory: mobile/android
+        env:
+          ANDROID_NDK_ROOT: /home/runner/Android/Sdk/ndk/25.2.9519653
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      # ── 10. Upload APK to GitHub Artifacts ──────────────────────────────────
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 7

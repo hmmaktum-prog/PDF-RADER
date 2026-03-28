@@ -44,16 +44,22 @@ jobs:
         run: |
           ARM64_QPDF="mobile/native/third_party/qpdf/libs/arm64-v8a/libqpdf.so"
           ARM64_MUPDF="mobile/native/third_party/mupdf/libs/arm64-v8a/libmupdf.so"
+          ARM64_PADDLE="mobile/native/third_party/paddle-lite/libs/arm64-v8a/libpaddle_light_api_shared.so"
+          ARM64_BRIDGE="mobile/native/third_party/pdfpowertools_native/libs/arm64-v8a/libpdfpowertools_native.so"
+          
           X86_QPDF="mobile/native/third_party/qpdf/libs/x86_64/libqpdf.so"
           X86_MUPDF="mobile/native/third_party/mupdf/libs/x86_64/libmupdf.so"
+          X86_PADDLE="mobile/native/third_party/paddle-lite/libs/x86_64/libpaddle_light_api_shared.so"
+          X86_BRIDGE="mobile/native/third_party/pdfpowertools_native/libs/x86_64/libpdfpowertools_native.so"
+          
           echo "=== বিদ্যমান .so files ==="
           find mobile/native/third_party -name '*.so' 2>/dev/null || echo "(none)"
-          if [[ -f "$ARM64_QPDF" && -f "$ARM64_MUPDF" && -f "$X86_QPDF" && -f "$X86_MUPDF" && "${{ github.event.inputs.force }}" != "true" ]]; then
+          if [[ -f "$ARM64_QPDF" && -f "$ARM64_MUPDF" && -f "$X86_QPDF" && -f "$X86_MUPDF" && -f "$ARM64_PADDLE" && -f "$X86_PADDLE" && -f "$ARM64_BRIDGE" && -f "$X86_BRIDGE" && "${{ github.event.inputs.force }}" != "true" ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
-            echo "✓ সব .so আছে — build skip। force=true দিয়ে আবার run করুন।"
+            echo "✓ সব .so (QPDF, MuPDF, Paddle, Bridge) আছে — build skip। force=true দিয়ে আবার run করুন।"
           else
             echo "skip=false" >> $GITHUB_OUTPUT
-            echo "→ Build শুরু হবে।"
+            echo "→ Build শুরু হবে (বা আগের কোনো .so ফাইল অনুপস্থিত)।"
           fi
 
       - name: Cache NDK
@@ -403,6 +409,72 @@ jobs:
             cp -r "$SRC/mupdf-1.27.2-source/include/." \
             "$THIRD/mupdf/include/" 2>/dev/null || true
           echo "✓ Headers copied"
+
+      - name: Build Custom JNI Bridge (libpdfpowertools_native.so)
+        if: steps.check.outputs.skip != 'true'
+        env:
+          ANDROID_NDK_ROOT: /home/runner/Android/Sdk/ndk/25.2.9519653
+        run: |
+          NDK="$ANDROID_NDK_ROOT"
+          TOOLCHAIN="$NDK/build/cmake/android.toolchain.cmake"
+          SRC="$(pwd)/mobile/native"
+          THIRD="$SRC/third_party"
+          
+          mkdir -p "$SRC/standalone"
+          cat << 'EOF' > "$SRC/standalone/CMakeLists.txt"
+          cmake_minimum_required(VERSION 3.18)
+          project(pdfpowertools_native)
+          
+          add_library(pdfpowertools_native SHARED 
+              ../src/qpdf_bridge.cpp 
+              ../src/mupdf_bridge.cpp 
+              ../src/paddle_ocr_bridge.cpp
+          )
+          target_compile_features(pdfpowertools_native PRIVATE cxx_std_20)
+          target_include_directories(pdfpowertools_native PRIVATE 
+              ../src 
+              ../third_party/qpdf/include 
+              ../third_party/mupdf/include 
+              ../third_party/paddle-lite/include
+          )
+          
+          target_compile_definitions(pdfpowertools_native PRIVATE 
+              HAS_QPDF=1 HAS_MUPDF=1 HAS_PADDLE=1 POINTERHOLDER_TRANSITION=0
+          )
+          
+          find_library(log-lib log)
+          find_library(android-lib android)
+          
+          add_library(qpdf SHARED IMPORTED)
+          set_target_properties(qpdf PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/qpdf/libs/${CMAKE_ANDROID_ARCH_ABI}/libqpdf.so")
+          
+          add_library(jpeg SHARED IMPORTED)
+          set_target_properties(jpeg PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/qpdf/libs/${CMAKE_ANDROID_ARCH_ABI}/libjpeg.so")
+          
+          add_library(mupdf SHARED IMPORTED)
+          set_target_properties(mupdf PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/mupdf/libs/${CMAKE_ANDROID_ARCH_ABI}/libmupdf.so")
+          
+          add_library(paddle_lite SHARED IMPORTED)
+          set_target_properties(paddle_lite PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/paddle-lite/libs/${CMAKE_ANDROID_ARCH_ABI}/libpaddle_light_api_shared.so")
+          
+          target_link_libraries(pdfpowertools_native qpdf jpeg mupdf paddle_lite ${log-lib} ${android-lib})
+          EOF
+          
+          for ABI in arm64-v8a x86_64; do
+            echo "━━ Bridge: $ABI ━━"
+            mkdir -p "$SRC/standalone/build-$ABI"
+            cmake \
+              -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
+              -DANDROID_ABI="$ABI" -DANDROID_PLATFORM=android-24 \
+              -DANDROID_STL=c++_shared -DCMAKE_BUILD_TYPE=Release \
+              -S "$SRC/standalone" -B "$SRC/standalone/build-$ABI" -G Ninja || exit 1
+            
+            ninja -C "$SRC/standalone/build-$ABI" || exit 1
+            
+            mkdir -p "$THIRD/pdfpowertools_native/libs/$ABI"
+            cp "$SRC/standalone/build-$ABI/libpdfpowertools_native.so" "$THIRD/pdfpowertools_native/libs/$ABI/"
+            echo "✓ Built Custom JNI Bridge .so for $ABI"
+          done
 
       - name: Show final .so files
         run: |
