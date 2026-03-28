@@ -28,6 +28,31 @@ The app runs as a **web preview** in Replit using `expo start --web --port 5000`
 | `src/qpdf_bridge.cpp` | JNI bridge for QPDF (merge, split, rotate, …) — compiled with `HAS_QPDF=1` when `libqpdf.so` is present |
 | `src/mupdf_bridge.cpp` | JNI bridge for MuPDF (render, grayscale, contrast, …) — compiled with `HAS_MUPDF=1` when `libmupdf.so` is present |
 
+## PP-OCR Feature Implementation Status (2026-03-28)
+
+| Feature | Status | Implementation |
+|---|---|---|
+| **PP-OCRv5 Detection** | ✅ সম্পূর্ণ | DBNet (C++) via Paddle-Lite |
+| **PP-OCRv5 Recognition** | ✅ সম্পূর্ণ | SVTR/CRNN + CTC (C++) |
+| **PP-Structure v2** | ✅ উন্নত | Multi-column detection, reading order, section types |
+| **PP-Table** | ✅ নতুন | Row/col clustering → markdown table (C++) |
+| **PP-Layout** | ✅ নতুন | title/heading/paragraph/list/caption/formula classification |
+| **PP-Formula** | ✅ নতুন | Math symbol scoring + LaTeX conversion (C++) |
+| **Key Info Extraction** | ✅ সম্পূর্ণ | Regex-based (dates/amounts/refs/emails/phones/URLs) |
+
+### New JNI Functions (paddle_ocr_bridge.cpp)
+- `analyzeTableStructure(ocrBoxesJson, imgW, imgH)` → `{tables: [{rows,cols,cells[],markdownTable}]}`
+- `detectFormulaRegions(ocrBoxesJson, threshold)` → `{formulas: [{text,score,latex}]}`
+- `getLayoutInfo(ocrBoxesJson, imgW, imgH)` → `{boxes[], layoutInfo: {columns,titles,headings,...}}`
+
+### OCR Screen Features (ocr.tsx)
+- Feature badge strip: PP-OCRv5 / PP-Layout / PP-Table / PP-Formula / Key Info
+- Result preview panel with 5 tabs: Text / Tables / Formulas / Layout / Key Info
+- "Table + Formula" output format → markdown `.md` file
+- Reading-order list and column count in Layout tab
+
+---
+
 ### Prebuilt Native Libraries Status
 
 | Library | arm64-v8a | x86_64 | Notes |

@@ -48,15 +48,18 @@ const nativePaddleModule = NativeModules.PaddleOCRBridge;
 const hasNativePaddleModule = !!nativePaddleModule;
 
 const PaddleOCRBridge: any = nativePaddleModule ?? {
-  initEngine:        () => Promise.resolve(false),
-  isEngineReady:     () => Promise.resolve(false),
-  releaseEngine:     () => Promise.resolve(true),
-  recognizeImage:    () => Promise.resolve(JSON.stringify({ success: false, error: 'Paddle not linked', boxes: [], fullText: '', keyInfo: {} })),
-  detectOnly:        () => Promise.resolve(JSON.stringify({ boxes: [] })),
-  extractKIE:        () => Promise.resolve(JSON.stringify({ dates: [], amounts: [], referenceNumbers: [], emails: [], phones: [], urls: [] })),
-  downloadModel:     () => Promise.resolve(false),
-  isModelDownloaded: () => Promise.resolve(false),
-  isPaddleLinked:    () => Promise.resolve(false),
+  initEngine:             () => Promise.resolve(false),
+  isEngineReady:          () => Promise.resolve(false),
+  releaseEngine:          () => Promise.resolve(true),
+  recognizeImage:         () => Promise.resolve(JSON.stringify({ success: false, error: 'Paddle not linked', boxes: [], fullText: '', keyInfo: {}, tables: [], formulas: [], layoutInfo: {} })),
+  detectOnly:             () => Promise.resolve(JSON.stringify({ boxes: [] })),
+  extractKIE:             () => Promise.resolve(JSON.stringify({ dates: [], amounts: [], referenceNumbers: [], emails: [], phones: [], urls: [] })),
+  downloadModel:          () => Promise.resolve(false),
+  isModelDownloaded:      () => Promise.resolve(false),
+  isPaddleLinked:         () => Promise.resolve(false),
+  analyzeTableStructure:  () => Promise.resolve(JSON.stringify({ tables: [] })),
+  detectFormulaRegions:   () => Promise.resolve(JSON.stringify({ formulas: [] })),
+  getLayoutInfo:          () => Promise.resolve(JSON.stringify({ boxes: [], layoutInfo: {} })),
 };
 
 function ensureAndroid(name: string): void {
@@ -478,8 +481,10 @@ export async function batchRenderPages(
 export interface OcrBox {
   x1: number; y1: number; x2: number; y2: number;
   text: string;
-  type: 'title' | 'heading' | 'text' | 'header' | 'footer' | 'table_cell' | string;
+  type: 'title' | 'heading' | 'paragraph' | 'header' | 'footer' | 'table_cell' | 'list_item' | 'caption' | 'formula' | string;
   confidence: number;
+  columnIndex?: number;   // -1=full width, 0=left col, 1=right col
+  readingOrder?: number;  // document reading order index
 }
 
 export interface KIEResult {
@@ -491,12 +496,52 @@ export interface KIEResult {
   urls: string[];
 }
 
+/** PP-Table: single cell in a reconstructed table */
+export interface TableCell {
+  row: number;
+  col: number;
+  x1: number; y1: number; x2: number; y2: number;
+  text: string;
+}
+
+/** PP-Table: full reconstructed table */
+export interface TableResult {
+  x1: number; y1: number; x2: number; y2: number;
+  rows: number;
+  cols: number;
+  cells: TableCell[];
+  markdownTable: string;
+}
+
+/** PP-Formula: detected formula region */
+export interface FormulaRegion {
+  x1: number; y1: number; x2: number; y2: number;
+  text: string;
+  score: number;
+  latex: string;  // best-effort LaTeX representation
+}
+
+/** PP-Layout: document structure summary */
+export interface LayoutInfo {
+  columns: number;      // number of text columns (1 or 2)
+  titles: number;
+  headings: number;
+  paragraphs: number;
+  tableCells: number;
+  formulas: number;
+  listItems: number;
+  captions?: number;
+}
+
 export interface OcrResult {
   success: boolean;
   language: string;
   fullText: string;
   boxes: OcrBox[];
   keyInfo: KIEResult;
+  tables: TableResult[];       // PP-Table results
+  formulas: FormulaRegion[];   // PP-Formula results
+  layoutInfo: LayoutInfo;      // PP-Layout summary
   error?: string;
 }
 
@@ -599,4 +644,73 @@ export async function downloadOcrModel(
 export async function isPaddleLinked(): Promise<boolean> {
   if (!isAndroidPlatform) return false;
   try { return await PaddleOCRBridge.isPaddleLinked(); } catch { return false; }
+}
+
+/**
+ * PP-Table: Reconstruct table structure from an array of OCR boxes.
+ * Pass in boxes with type="table_cell" (or all boxes — the engine filters).
+ * Returns structured table data including markdown representation.
+ */
+export async function analyzeTableStructure(
+  boxes: OcrBox[],
+  imgWidth: number,
+  imgHeight: number
+): Promise<{ tables: TableResult[] }> {
+  if (!isAndroidPlatform) return { tables: [] };
+  try {
+    const json: string = await PaddleOCRBridge.analyzeTableStructure(
+      JSON.stringify(boxes),
+      imgWidth,
+      imgHeight
+    );
+    return JSON.parse(json) as { tables: TableResult[] };
+  } catch {
+    return { tables: [] };
+  }
+}
+
+/**
+ * PP-Formula: Detect math formula regions from OCR boxes.
+ * @param threshold  Sensitivity (0.0–1.0). Default 0.35. Lower = more detections.
+ * Returns formula regions with best-effort LaTeX strings.
+ */
+export async function detectFormulaRegions(
+  boxes: OcrBox[],
+  threshold = 0.35
+): Promise<{ formulas: FormulaRegion[] }> {
+  if (!isAndroidPlatform) return { formulas: [] };
+  try {
+    const json: string = await PaddleOCRBridge.detectFormulaRegions(
+      JSON.stringify(boxes),
+      threshold
+    );
+    return JSON.parse(json) as { formulas: FormulaRegion[] };
+  } catch {
+    return { formulas: [] };
+  }
+}
+
+/**
+ * PP-Layout: Full document layout analysis on OCR boxes.
+ * Returns classified boxes (with type, columnIndex, readingOrder)
+ * and a summary of layout regions found.
+ */
+export async function getLayoutInfo(
+  boxes: OcrBox[],
+  imgWidth: number,
+  imgHeight: number
+): Promise<{ boxes: OcrBox[]; layoutInfo: LayoutInfo }> {
+  if (!isAndroidPlatform) {
+    return { boxes, layoutInfo: { columns: 1, titles: 0, headings: 0, paragraphs: 0, tableCells: 0, formulas: 0, listItems: 0 } };
+  }
+  try {
+    const json: string = await PaddleOCRBridge.getLayoutInfo(
+      JSON.stringify(boxes),
+      imgWidth,
+      imgHeight
+    );
+    return JSON.parse(json) as { boxes: OcrBox[]; layoutInfo: LayoutInfo };
+  } catch {
+    return { boxes, layoutInfo: { columns: 1, titles: 0, headings: 0, paragraphs: 0, tableCells: 0, formulas: 0, listItems: 0 } };
+  }
 }

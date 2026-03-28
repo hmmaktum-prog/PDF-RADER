@@ -1,12 +1,15 @@
 /**
  * paddleOcrService.ts
  *
- * High-level OCR orchestration service — PP-OCRv5 pipeline:
+ * High-level OCR orchestration service — সম্পূর্ণ PP-OCRv5 pipeline:
  *
  *  ১. PP-OCRv5 Detection    — text region bounding boxes (DBNet)
  *  ২. PP-OCRv5 Recognition  — text string per region (SVTR/CRNN + CTC)
- *  ৩. PP-Structure v2       — layout classification (title/heading/table…)
- *  ৪. Key Information Ext.  — dates, amounts, refs, emails, phones, URLs
+ *  ৩. PP-Structure v2       — multi-column layout, reading order, section types
+ *  ৪. PP-Table              — table structure reconstruction (rows×cols → markdown)
+ *  ৫. PP-Layout             — document region classification (figure/list/caption/para)
+ *  ৬. PP-Formula            — math formula detection + LaTeX conversion
+ *  ৭. Key Information Ext.  — dates, amounts, refs, emails, phones, URLs
  *
  * Flow:
  *   PDF → MuPDF renders page images → PaddleOCR processes each image → results
@@ -20,15 +23,28 @@ import {
   releaseOcrEngine,
   recognizeImageOcr,
   extractKeyInfo,
+  analyzeTableStructure,
+  detectFormulaRegions,
+  getLayoutInfo,
   isPaddleModelDownloaded,
   downloadOcrModel,
   isPaddleLinked,
   OcrResult,
   OcrBox,
   KIEResult,
+  TableResult,
+  FormulaRegion,
+  LayoutInfo,
 } from './nativeModules';
 
-export type { OcrResult, OcrBox, KIEResult };
+export type {
+  OcrResult,
+  OcrBox,
+  KIEResult,
+  TableResult,
+  FormulaRegion,
+  LayoutInfo,
+};
 
 /* ─── Language codes ──────────────────────────────────────────── */
 
@@ -65,23 +81,16 @@ export interface OfflineOcrOptions {
 
 /* ─── Model management ────────────────────────────────────────── */
 
-/** Returns true if Paddle-Lite was compiled in (HAS_PADDLE defined) */
 export async function isPaddleAvailable(): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
   return isPaddleLinked();
 }
 
-/** Check if OCR model files for a language are downloaded */
 export async function isOcrModelDownloaded(language: OcrLanguage): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
   return isPaddleModelDownloaded(language);
 }
 
-/**
- * Download PP-OCRv4 mobile model files for a language.
- * Detection model is shared; recognition model is per-language.
- * Reports progress (0–100) via onProgress callback.
- */
 export async function downloadOcrModelForLanguage(
   language: OcrLanguage,
   onProgress?: (pct: number) => void
@@ -94,10 +103,6 @@ export async function downloadOcrModelForLanguage(
 
 let _activeLanguage: OcrLanguage | null = null;
 
-/**
- * Initialize engine for a given language.
- * Re-initializes if the language changed since last call.
- */
 export async function ensureEngine(language: OcrLanguage): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
 
@@ -120,10 +125,6 @@ export async function freeEngine(): Promise<void> {
 
 /* ─── Single-image OCR ────────────────────────────────────────── */
 
-/**
- * Run full PP-OCRv5 pipeline on one rendered image.
- * Requires engine to be initialized via ensureEngine() first.
- */
 export async function ocrImage(
   imagePath: string,
   language: OcrLanguage,
@@ -131,15 +132,66 @@ export async function ocrImage(
 ): Promise<OcrResult> {
   if (Platform.OS !== 'android') {
     return {
-      success:  false,
+      success:    false,
       language,
-      fullText: '',
-      boxes:    [],
-      keyInfo:  { dates: [], amounts: [], referenceNumbers: [], emails: [], phones: [], urls: [] },
-      error:    'Android only',
+      fullText:   '',
+      boxes:      [],
+      keyInfo:    { dates: [], amounts: [], referenceNumbers: [], emails: [], phones: [], urls: [] },
+      tables:     [],
+      formulas:   [],
+      layoutInfo: { columns: 1, titles: 0, headings: 0, paragraphs: 0, tableCells: 0, formulas: 0, listItems: 0 },
+      error:      'Android only',
     };
   }
   return recognizeImageOcr(imagePath, language, runKIE);
+}
+
+/* ─── Standalone PP-Table analysis ───────────────────────────── */
+
+/**
+ * Run PP-Table reconstruction on a set of already-recognized OCR boxes.
+ * Useful when you want to post-process results from a previous OCR call.
+ */
+export async function extractTableStructure(
+  boxes: OcrBox[],
+  imgWidth: number,
+  imgHeight: number
+): Promise<TableResult[]> {
+  if (Platform.OS !== 'android') return [];
+  const result = await analyzeTableStructure(boxes, imgWidth, imgHeight);
+  return result.tables;
+}
+
+/* ─── Standalone PP-Formula detection ────────────────────────── */
+
+/**
+ * Run PP-Formula detection on a set of OCR boxes.
+ * @param threshold  Formula confidence threshold (0.0–1.0). Default 0.35.
+ */
+export async function detectMathFormulas(
+  boxes: OcrBox[],
+  threshold = 0.35
+): Promise<FormulaRegion[]> {
+  if (Platform.OS !== 'android') return [];
+  const result = await detectFormulaRegions(boxes, threshold);
+  return result.formulas;
+}
+
+/* ─── Standalone PP-Layout analysis ──────────────────────────── */
+
+/**
+ * Run full PP-Layout analysis on a set of OCR boxes.
+ * Returns boxes enriched with type, columnIndex, readingOrder + layout summary.
+ */
+export async function analyzeDocumentLayout(
+  boxes: OcrBox[],
+  imgWidth: number,
+  imgHeight: number
+): Promise<{ boxes: OcrBox[]; layoutInfo: LayoutInfo }> {
+  if (Platform.OS !== 'android') {
+    return { boxes, layoutInfo: { columns: 1, titles: 0, headings: 0, paragraphs: 0, tableCells: 0, formulas: 0, listItems: 0 } };
+  }
+  return getLayoutInfo(boxes, imgWidth, imgHeight);
 }
 
 /* ─── Full PDF OCR pipeline ───────────────────────────────────── */
@@ -147,7 +199,8 @@ export async function ocrImage(
 /**
  * Full offline OCR pipeline for a PDF:
  *   1. Render all pages to PNG images (MuPDF, high-res)
- *   2. For each page, run PP-OCRv5 (Detection + Recognition + Layout)
+ *   2. For each page, run full PP-OCRv5 pipeline:
+ *      Detection → Recognition → PP-Structure v2 → PP-Table → PP-Formula → PP-Layout
  *   3. Optionally run KIE on combined text
  *
  * Returns per-page results and a combined OcrResult.
@@ -181,18 +234,23 @@ export async function performOfflineOcr(options: OfflineOcrOptions): Promise<{
     );
   }
 
-  // ── Phase 3: OCR each page ────────────────────────────────────
+  // ── Phase 3: OCR each page (full pipeline) ────────────────────
   const pages: OcrPageResult[] = [];
   let combinedText = '';
+  const allTables: TableResult[] = [];
+  const allFormulas: FormulaRegion[] = [];
 
   for (let i = 0; i < imagePaths.length; i++) {
     onProgress?.(i + 1, imagePaths.length, 'recognizing');
     const result = await recognizeImageOcr(imagePaths[i], language, false);
     pages.push({ pageNumber: i + 1, imagePath: imagePaths[i], result });
+
     if (result.fullText) {
       if (combinedText && i > 0) combinedText += `\n\n--- Page ${i + 1} ---\n`;
       combinedText += result.fullText;
     }
+    if (result.tables)   allTables.push(...result.tables);
+    if (result.formulas) allFormulas.push(...result.formulas);
   }
 
   onProgress?.(imagePaths.length, imagePaths.length, 'done');
@@ -204,21 +262,37 @@ export async function performOfflineOcr(options: OfflineOcrOptions): Promise<{
 
   const allBoxes: OcrBox[] = pages.flatMap(p => p.result.boxes);
 
+  // Combined layout info (sum across pages)
+  const combinedLayout: LayoutInfo = pages.reduce((acc, p) => {
+    const li = p.result.layoutInfo || { columns: 1, titles: 0, headings: 0, paragraphs: 0, tableCells: 0, formulas: 0, listItems: 0 };
+    return {
+      columns:    Math.max(acc.columns, li.columns || 1),
+      titles:     acc.titles     + (li.titles     || 0),
+      headings:   acc.headings   + (li.headings   || 0),
+      paragraphs: acc.paragraphs + (li.paragraphs || 0),
+      tableCells: acc.tableCells + (li.tableCells || 0),
+      formulas:   acc.formulas   + (li.formulas   || 0),
+      listItems:  acc.listItems  + (li.listItems  || 0),
+    };
+  }, { columns: 1, titles: 0, headings: 0, paragraphs: 0, tableCells: 0, formulas: 0, listItems: 0 });
+
   return {
     pages,
     combined: {
-      success:  true,
+      success:    true,
       language,
-      fullText: combinedText,
-      boxes:    allBoxes,
+      fullText:   combinedText,
+      boxes:      allBoxes,
       keyInfo,
+      tables:     allTables,
+      formulas:   allFormulas,
+      layoutInfo: combinedLayout,
     },
   };
 }
 
 /* ─── Formatting helpers ──────────────────────────────────────── */
 
-/** Combine per-page results into a plain text string */
 export function combineToPlainText(pages: OcrPageResult[]): string {
   return pages
     .sort((a, b) => a.pageNumber - b.pageNumber)
@@ -230,7 +304,6 @@ export function combineToPlainText(pages: OcrPageResult[]): string {
     .join('\n\n');
 }
 
-/** Group boxes by layout type (title, heading, text, table_cell…) */
 export function groupBoxesByType(boxes: OcrBox[]): Record<string, OcrBox[]> {
   const groups: Record<string, OcrBox[]> = {};
   for (const box of boxes) {
@@ -240,7 +313,6 @@ export function groupBoxesByType(boxes: OcrBox[]): Record<string, OcrBox[]> {
   return groups;
 }
 
-/** Format KIE result as a human-readable summary */
 export function formatKIESummary(kie: KIEResult): string {
   const lines: string[] = [];
   if (kie.dates.length)            lines.push(`Dates: ${kie.dates.join(', ')}`);
@@ -250,4 +322,35 @@ export function formatKIESummary(kie: KIEResult): string {
   if (kie.phones.length)           lines.push(`Phones: ${kie.phones.join(', ')}`);
   if (kie.urls.length)             lines.push(`URLs: ${kie.urls.join(', ')}`);
   return lines.join('\n') || '(No key information found)';
+}
+
+/** Format table results as a human-readable summary */
+export function formatTableSummary(tables: TableResult[]): string {
+  if (tables.length === 0) return '(No tables detected)';
+  return tables
+    .map((t, i) =>
+      `Table ${i + 1} (${t.rows} rows × ${t.cols} cols):\n${t.markdownTable}`
+    )
+    .join('\n\n');
+}
+
+/** Format formula results as a human-readable summary */
+export function formatFormulaSummary(formulas: FormulaRegion[]): string {
+  if (formulas.length === 0) return '(No formulas detected)';
+  return formulas
+    .map((f, i) => `Formula ${i + 1}: ${f.text}${f.latex !== f.text ? `\n  LaTeX: ${f.latex}` : ''}`)
+    .join('\n');
+}
+
+/** Format layout info as a human-readable summary */
+export function formatLayoutSummary(info: LayoutInfo): string {
+  const lines: string[] = [];
+  lines.push(`Columns: ${info.columns}`);
+  if (info.titles)     lines.push(`Titles: ${info.titles}`);
+  if (info.headings)   lines.push(`Headings: ${info.headings}`);
+  if (info.paragraphs) lines.push(`Paragraphs: ${info.paragraphs}`);
+  if (info.tableCells) lines.push(`Table cells: ${info.tableCells}`);
+  if (info.formulas)   lines.push(`Formulas: ${info.formulas}`);
+  if (info.listItems)  lines.push(`List items: ${info.listItems}`);
+  return lines.join(' | ');
 }

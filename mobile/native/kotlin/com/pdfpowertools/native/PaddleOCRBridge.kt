@@ -3,10 +3,6 @@ package com.pdfpowertools.native
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URL
@@ -41,7 +37,7 @@ object PaddleOCRBridge {
 
     /**
      * Full OCR pipeline on ARGB_8888 pixel bytes.
-     * Returns JSON: { success, fullText, boxes[], keyInfo }
+     * Returns JSON: { success, fullText, boxes[], tables[], formulas[], layoutInfo, keyInfo }
      */
     external fun recognizeFromRGBA(
         rgbaBytes: ByteArray,
@@ -59,6 +55,27 @@ object PaddleOCRBridge {
     /** Returns true if Paddle-Lite was linked at compile time */
     external fun isPaddleLinked(): Boolean
 
+    /**
+     * PP-Table: reconstruct table structure from OCR boxes JSON.
+     * Input: JSON array of boxes with type="table_cell"
+     * Returns: { tables: [{rows, cols, cells[], markdownTable}] }
+     */
+    external fun analyzeTableStructure(ocrBoxesJson: String, imgWidth: Int, imgHeight: Int): String
+
+    /**
+     * PP-Formula: detect formula regions from OCR boxes JSON.
+     * Input: JSON array of boxes with text fields
+     * Returns: { formulas: [{x1,y1,x2,y2,text,score,latex}] }
+     */
+    external fun detectFormulaRegions(ocrBoxesJson: String, threshold: Float): String
+
+    /**
+     * PP-Layout: full layout analysis on OCR boxes JSON.
+     * Input: JSON array of raw boxes
+     * Returns: { boxes[], layoutInfo: {columns, titles, headings, paragraphs, ...} }
+     */
+    external fun getLayoutInfo(ocrBoxesJson: String, imgWidth: Int, imgHeight: Int): String
+
     // ─── High-level helpers (called from PaddleOCRBridgeRNModule) ────────────
 
     /**
@@ -71,7 +88,7 @@ object PaddleOCRBridge {
         runKIE: Boolean = true
     ): String {
         val bytes = decodeImageToRGBA(imagePath)
-            ?: return """{"success":false,"error":"Cannot decode image: $imagePath","boxes":[],"fullText":"","keyInfo":{}}"""
+            ?: return """{"success":false,"error":"Cannot decode image: $imagePath","boxes":[],"fullText":"","keyInfo":{},"tables":[],"formulas":[],"layoutInfo":{}}"""
         return recognizeFromRGBA(bytes.first, bytes.second, bytes.third, runKIE)
     }
 
@@ -95,7 +112,6 @@ object PaddleOCRBridge {
             val buf = IntArray(w * h)
             bmp.getPixels(buf, 0, w, 0, 0, w, h)
             bmp.recycle()
-            // Convert Int ARGB → ByteArray (4 bytes per pixel: A R G B)
             val bytes = ByteArray(w * h * 4)
             for (i in buf.indices) {
                 val px = buf[i]
@@ -119,9 +135,9 @@ object PaddleOCRBridge {
 
         // Recognition models per language
         val REC = mapOf(
-            "en"  to "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_lite_model/en_PP-OCRv4_mobile_rec_opt.nb",
-            "ben" to "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_lite_model/multilingual_mobile_rec_opt.nb",
-            "ara" to "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_lite_model/multilingual_mobile_rec_opt.nb",
+            "en"    to "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_lite_model/en_PP-OCRv4_mobile_rec_opt.nb",
+            "ben"   to "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_lite_model/multilingual_mobile_rec_opt.nb",
+            "ara"   to "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_lite_model/multilingual_mobile_rec_opt.nb",
             "mixed" to "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_lite_model/multilingual_mobile_rec_opt.nb",
         )
 

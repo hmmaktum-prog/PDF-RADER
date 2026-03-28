@@ -1,6 +1,5 @@
 package com.pdfpowertools.native
 
-import android.util.Base64
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -18,6 +17,20 @@ import kotlinx.coroutines.launch
  * React Native module — bridges JavaScript ↔ PaddleOCRBridge (C++ + Kotlin).
  *
  * Exposed as NativeModules.PaddleOCRBridge in JavaScript.
+ *
+ * Methods exposed:
+ *  1.  initEngine           — initialize det + rec OCR engine
+ *  2.  isEngineReady        — health check
+ *  3.  releaseEngine        — free memory
+ *  4.  recognizeImage       — full OCR pipeline (det→rec→layout→table→formula→KIE)
+ *  5.  detectOnly           — detection bounding boxes only
+ *  6.  extractKIE           — key information extraction from text
+ *  7.  isModelDownloaded    — check if model files exist
+ *  8.  downloadModel        — download OCR model files with progress events
+ *  9.  isPaddleLinked       — compile-time Paddle-Lite check
+ *  10. analyzeTableStructure — PP-Table: reconstruct table from OCR boxes JSON
+ *  11. detectFormulaRegions  — PP-Formula: detect math formulas from OCR boxes JSON
+ *  12. getLayoutInfo         — PP-Layout: full document layout analysis
  */
 class PaddleOCRBridgeRNModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -26,18 +39,14 @@ class PaddleOCRBridgeRNModule(private val reactContext: ReactApplicationContext)
 
     // ─── Engine lifecycle ──────────────────────────────────────────────────────
 
-    /**
-     * Initialize detection + recognition engines.
-     * Must be called before recognizeImage / detectOnly.
-     */
     @ReactMethod
     fun initEngine(language: String, promise: Promise) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val ctx = reactContext.applicationContext
-                val detPath  = PaddleOCRBridge.detModelPath(ctx)
-                val recPath  = PaddleOCRBridge.recModelPath(ctx, language)
-                val dict     = PaddleOCRBridge.readDict(ctx, language)
+                val detPath = PaddleOCRBridge.detModelPath(ctx)
+                val recPath = PaddleOCRBridge.recModelPath(ctx, language)
+                val dict    = PaddleOCRBridge.readDict(ctx, language)
                 val ok = PaddleOCRBridge.initEngine(detPath, recPath, dict, language)
                 promise.resolve(ok)
             } catch (t: Throwable) {
@@ -62,14 +71,11 @@ class PaddleOCRBridgeRNModule(private val reactContext: ReactApplicationContext)
         }
     }
 
-    // ─── OCR pipeline ────────────────────────────────────────────────────────
+    // ─── OCR pipeline ─────────────────────────────────────────────────────────
 
     /**
      * Full OCR on an image file.
-     * @param imagePath Absolute file path (rendered PNG from MuPDF)
-     * @param language  "en" | "ben" | "ara" | "mixed"
-     * @param runKIE    Whether to run Key Information Extraction
-     * Returns JSON string: { success, fullText, boxes[], keyInfo }
+     * Returns JSON: { success, fullText, boxes[], tables[], formulas[], layoutInfo, keyInfo }
      */
     @ReactMethod
     fun recognizeImage(imagePath: String, language: String, runKIE: Boolean, promise: Promise) {
@@ -84,7 +90,7 @@ class PaddleOCRBridgeRNModule(private val reactContext: ReactApplicationContext)
     }
 
     /**
-     * Detection only — faster, returns bounding boxes without recognition.
+     * Detection only — returns bounding boxes without recognition.
      * Returns JSON: { boxes: [{x1,y1,x2,y2,score}] }
      */
     @ReactMethod
@@ -106,7 +112,6 @@ class PaddleOCRBridgeRNModule(private val reactContext: ReactApplicationContext)
 
     /**
      * Key Information Extraction from plain text.
-     * No image needed — useful after Gemini OCR.
      * Returns JSON: { dates[], amounts[], referenceNumbers[], emails[], phones[], urls[] }
      */
     @ReactMethod
@@ -120,11 +125,70 @@ class PaddleOCRBridgeRNModule(private val reactContext: ReactApplicationContext)
         }
     }
 
-    // ─── Model management ────────────────────────────────────────────────────
+    // ─── PP-Table ─────────────────────────────────────────────────────────────
 
     /**
-     * Check whether model files for a given language are already downloaded.
+     * PP-Table: Reconstruct table structure from OCR boxes JSON.
+     * @param ocrBoxesJson  JSON array: [{x1,y1,x2,y2,text,type}]
+     * @param imgWidth      Original image width (pixels)
+     * @param imgHeight     Original image height (pixels)
+     * Returns JSON: { tables: [{rows, cols, cells[], markdownTable, x1,y1,x2,y2}] }
      */
+    @ReactMethod
+    fun analyzeTableStructure(ocrBoxesJson: String, imgWidth: Int, imgHeight: Int, promise: Promise) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val result = PaddleOCRBridge.analyzeTableStructure(ocrBoxesJson, imgWidth, imgHeight)
+                promise.resolve(result)
+            } catch (t: Throwable) {
+                promise.reject("PADDLE_TABLE_FAILED", t.message, t)
+            }
+        }
+    }
+
+    // ─── PP-Formula ───────────────────────────────────────────────────────────
+
+    /**
+     * PP-Formula: Detect math formula regions from OCR boxes JSON.
+     * @param ocrBoxesJson  JSON array: [{x1,y1,x2,y2,text}]
+     * @param threshold     Formula score threshold (0.0–1.0, default 0.35)
+     * Returns JSON: { formulas: [{x1,y1,x2,y2,text,score,latex}] }
+     */
+    @ReactMethod
+    fun detectFormulaRegions(ocrBoxesJson: String, threshold: Double, promise: Promise) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val result = PaddleOCRBridge.detectFormulaRegions(ocrBoxesJson, threshold.toFloat())
+                promise.resolve(result)
+            } catch (t: Throwable) {
+                promise.reject("PADDLE_FORMULA_FAILED", t.message, t)
+            }
+        }
+    }
+
+    // ─── PP-Layout ────────────────────────────────────────────────────────────
+
+    /**
+     * PP-Layout: Full document layout analysis on OCR boxes JSON.
+     * @param ocrBoxesJson  JSON array: [{x1,y1,x2,y2,text}]
+     * @param imgWidth      Original image width (pixels)
+     * @param imgHeight     Original image height (pixels)
+     * Returns JSON: { boxes[], layoutInfo: {columns, titles, headings, paragraphs, ...} }
+     */
+    @ReactMethod
+    fun getLayoutInfo(ocrBoxesJson: String, imgWidth: Int, imgHeight: Int, promise: Promise) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val result = PaddleOCRBridge.getLayoutInfo(ocrBoxesJson, imgWidth, imgHeight)
+                promise.resolve(result)
+            } catch (t: Throwable) {
+                promise.reject("PADDLE_LAYOUT_FAILED", t.message, t)
+            }
+        }
+    }
+
+    // ─── Model management ─────────────────────────────────────────────────────
+
     @ReactMethod
     fun isModelDownloaded(language: String, promise: Promise) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -138,8 +202,7 @@ class PaddleOCRBridgeRNModule(private val reactContext: ReactApplicationContext)
     }
 
     /**
-     * Download model files for a language.
-     * Sends progress events: { type: "download_progress", value: 0–100 }
+     * Download model files. Sends progress events: PaddleModelDownloadProgress { progress, language }
      */
     @ReactMethod
     fun downloadModel(language: String, promise: Promise) {
@@ -163,9 +226,6 @@ class PaddleOCRBridgeRNModule(private val reactContext: ReactApplicationContext)
         }
     }
 
-    /**
-     * Health check — is Paddle-Lite compiled and linked?
-     */
     @ReactMethod
     fun isPaddleLinked(promise: Promise) {
         CoroutineScope(Dispatchers.IO).launch {
