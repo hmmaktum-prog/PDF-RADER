@@ -42,6 +42,12 @@ const MuPDFBridge: any = nativeMupdfModule ?? {
   isMupdfLinked: () => Promise.resolve(false),
   searchPdfText: () => Promise.resolve("[]"),
   getPdfOutline: () => Promise.resolve("[]"),
+  // Session-based APIs for fast PDF viewing
+  openSession: () => Promise.resolve(-1),
+  closeSession: () => Promise.resolve(),
+  renderPageAtDpi: () => Promise.resolve(false),
+  renderThumbnail: () => Promise.resolve(false),
+  extractPageText: () => Promise.resolve('{"text":"","blocks":[]}'),
 };
 
 const nativePaddleModule = NativeModules.PaddleOCRBridge;
@@ -358,6 +364,20 @@ export async function getPageCount(inputPath: string, password?: string): Promis
   ensureAndroid('getPageCount');
   await ensureEngineLinked('MuPDF', 'getPageCount');
   return await MuPDFBridge.getPageCount(inputPath, password || '');
+}
+
+/**
+ * Get PDF page width and height.
+ * @param pageNumber 1-based page index.
+ * @returns [width, height] in points (1/72 inch).
+ */
+export async function getPageDimensions(
+  inputPath: string,
+  pageNumber: number
+): Promise<[number, number]> {
+  ensureAndroid('getPageDimensions');
+  await ensureEngineLinked('MuPDF', 'getPageDimensions');
+  return await MuPDFBridge.getPageDimensions(inputPath, pageNumber);
 }
 
 /**
@@ -712,5 +732,75 @@ export async function getLayoutInfo(
     return JSON.parse(json) as { boxes: OcrBox[]; layoutInfo: LayoutInfo };
   } catch {
     return { boxes, layoutInfo: { columns: 1, titles: 0, headings: 0, paragraphs: 0, tableCells: 0, formulas: 0, listItems: 0 } };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MuPDF Session-based APIs for PDF Viewer
+// These provide dramatically faster page rendering by keeping
+// the document open for the entire viewing session.
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Open a persistent PDF session. Returns total page count on success, -1 on failure.
+ * The session keeps fz_context + fz_document alive for fast page rendering.
+ * Call closeSession() when done viewing.
+ */
+export async function openPdfSession(path: string, password?: string): Promise<number> {
+  ensureAndroid('openPdfSession');
+  return MuPDFBridge.openSession(path, password || '');
+}
+
+/**
+ * Close the current PDF session. Always call this when leaving the reader.
+ */
+export async function closePdfSession(): Promise<void> {
+  ensureAndroid('closePdfSession');
+  return MuPDFBridge.closeSession();
+}
+
+/**
+ * Render a page at a specific DPI (session-based).
+ * @param pageIndex 0-based page index
+ * @param dpi DPI for rendering (72 = screen, 150 = medium, 200+ = high quality)
+ * @param outputPath Where to save the rendered image (JPEG/PNG based on extension)
+ */
+export async function renderPageAtDpi(
+  pageIndex: number,
+  dpi: number,
+  outputPath: string
+): Promise<boolean> {
+  ensureAndroid('renderPageAtDpi');
+  return MuPDFBridge.renderPageAtDpi(pageIndex, dpi, outputPath);
+}
+
+/**
+ * Render a fast thumbnail of a page (session-based).
+ * @param pageIndex 0-based page index
+ * @param maxWidth Maximum width in pixels for the thumbnail
+ * @param outputPath Where to save the thumbnail (always JPEG)
+ */
+export async function renderThumbnail(
+  pageIndex: number,
+  maxWidth: number,
+  outputPath: string
+): Promise<boolean> {
+  ensureAndroid('renderThumbnail');
+  return MuPDFBridge.renderThumbnail(pageIndex, maxWidth, outputPath);
+}
+
+/**
+ * Extract text from a specific page (session-based).
+ * @param pageIndex 0-based page index
+ * @returns JSON string with extracted text
+ */
+export async function extractPageText(pageIndex: number): Promise<string> {
+  ensureAndroid('extractPageText');
+  const json: string = await MuPDFBridge.extractPageText(pageIndex);
+  try {
+    const parsed = JSON.parse(json);
+    return parsed.text || '';
+  } catch {
+    return '';
   }
 }

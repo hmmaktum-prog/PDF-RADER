@@ -138,6 +138,222 @@ static void savePixmapForPath(fz_context* ctx, fz_pixmap* pix, const std::string
         fz_save_pixmap_as_png(ctx, pix, outPath.c_str());
     }
 }
+
+/* ═══════════════════════ Persistent Document Session ═══════════════════
+ * Performance optimization: keep context + document open for the entire
+ * viewing session instead of opening/closing on every page render.
+ * This dramatically reduces latency for page-to-page navigation.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+struct PdfSession {
+    fz_context*  ctx  = nullptr;
+    fz_document* doc  = nullptr;
+    int          pageCount = 0;
+    std::string  path;
+    bool         valid = false;
+};
+
+static PdfSession g_session;
+
+static void closeSessionInternal() {
+    if (g_session.doc) { fz_drop_document(g_session.ctx, g_session.doc); g_session.doc = nullptr; }
+    if (g_session.ctx) { fz_drop_context(g_session.ctx); g_session.ctx = nullptr; }
+    g_session.valid = false;
+    g_session.pageCount = 0;
+    g_session.path.clear();
+    LOGI("Session closed.");
+}
+#endif
+
+// ─── Open Persistent Session ─────────────────────────────────
+extern "C" JNIEXPORT jint JNICALL
+Java_com_pdfpowertools_native_MuPDFBridge_openSession(
+        JNIEnv* env, jobject, jstring inputPath, jstring password) {
+#ifdef HAS_MUPDF
+    // Close any existing session first
+    if (g_session.valid) closeSessionInternal();
+
+    const std::string in = normalizePath(jstringToStd(env, inputPath));
+    const std::string pwd = jstringToStd(env, password);
+    LOGI("openSession: %s", in.c_str());
+
+    // Use 256MB store limit for better large-PDF caching
+    g_session.ctx = fz_new_context(nullptr, nullptr, 256 << 20);
+    if (!g_session.ctx) { LOGE("openSession: fz_new_context failed"); return -1; }
+
+    fz_try(g_session.ctx) {
+        fz_register_document_handlers(g_session.ctx);
+        g_session.doc = fz_open_document(g_session.ctx, in.c_str());
+        if (fz_needs_password(g_session.ctx, g_session.doc)) {
+            if (!fz_authenticate_password(g_session.ctx, g_session.doc, pwd.c_str())) {
+                fz_throw(g_session.ctx, FZ_ERROR_GENERIC, "Invalid password");
+            }
+        }
+        g_session.pageCount = fz_count_pages(g_session.ctx, g_session.doc);
+        g_session.path = in;
+        g_session.valid = true;
+        LOGI("Session opened: %d pages", g_session.pageCount);
+    }
+    fz_catch(g_session.ctx) {
+        LOGE("openSession error: %s", fz_caught_message(g_session.ctx));
+        closeSessionInternal();
+        return -1;
+    }
+    return g_session.pageCount;
+#else
+    return countPdfPagesHeuristic(normalizePath(jstringToStd(env, inputPath)));
+#endif
+}
+
+// ─── Close Persistent Session ────────────────────────────────
+extern "C" JNIEXPORT void JNICALL
+Java_com_pdfpowertools_native_MuPDFBridge_closeSession(JNIEnv*, jobject) {
+#ifdef HAS_MUPDF
+    closeSessionInternal();
+#endif
+}
+
+// ─── Render Page at Specific DPI (Session-based) ─────────────
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_pdfpowertools_native_MuPDFBridge_renderPageAtDpi(
+        JNIEnv* env, jobject,
+        jint pageIndex, jint dpi, jstring outputPath) {
+#ifdef HAS_MUPDF
+    if (!g_session.valid || !g_session.doc) {
+        LOGE("renderPageAtDpi: no active session");
+        return JNI_FALSE;
+    }
+    const std::string out = normalizePath(jstringToStd(env, outputPath));
+    bool success = false;
+    fz_try(g_session.ctx) {
+        fz_page* page = fz_load_page(g_session.ctx, g_session.doc, pageIndex);
+        float zoom = dpi / 72.0f;  // MuPDF default is 72 DPI
+        fz_matrix ctm = fz_scale(zoom, zoom);
+        fz_rect rect = fz_bound_page(g_session.ctx, page);
+        rect = fz_transform_rect(rect, ctm);
+        fz_irect bbox = fz_round_rect(rect);
+
+        fz_pixmap* pix = fz_new_pixmap_with_bbox(g_session.ctx, fz_device_rgb(g_session.ctx), bbox, nullptr, 0);
+        fz_clear_pixmap_with_value(g_session.ctx, pix, 0xff);
+
+        fz_device* dev = fz_new_draw_device(g_session.ctx, ctm, pix);
+        fz_run_page(g_session.ctx, page, dev, fz_identity, nullptr);
+        fz_close_device(g_session.ctx, dev);
+        fz_drop_device(g_session.ctx, dev);
+
+        if (!ensureParentDirectory(out))
+            fz_throw(g_session.ctx, FZ_ERROR_GENERIC, "Cannot create output directory");
+
+        jboolean highRes = (dpi > 100) ? JNI_TRUE : JNI_FALSE;
+        savePixmapForPath(g_session.ctx, pix, out, highRes);
+
+        fz_drop_pixmap(g_session.ctx, pix);
+        fz_drop_page(g_session.ctx, page);
+        success = true;
+    }
+    fz_catch(g_session.ctx) {
+        LOGE("renderPageAtDpi error (page %d, dpi %d): %s", pageIndex, dpi,
+             fz_caught_message(g_session.ctx));
+    }
+    return success ? JNI_TRUE : JNI_FALSE;
+#else
+    return writeTinyPng(normalizePath(jstringToStd(env, outputPath))) ? JNI_TRUE : JNI_FALSE;
+#endif
+}
+
+// ─── Render Thumbnail (fast, low-res, max width) ─────────────
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_pdfpowertools_native_MuPDFBridge_renderThumbnail(
+        JNIEnv* env, jobject,
+        jint pageIndex, jint maxWidth, jstring outputPath) {
+#ifdef HAS_MUPDF
+    if (!g_session.valid || !g_session.doc) return JNI_FALSE;
+    const std::string out = normalizePath(jstringToStd(env, outputPath));
+    bool success = false;
+    fz_try(g_session.ctx) {
+        fz_page* page = fz_load_page(g_session.ctx, g_session.doc, pageIndex);
+        fz_rect rect = fz_bound_page(g_session.ctx, page);
+        float pageW = rect.x1 - rect.x0;
+        float zoom = (float)maxWidth / pageW;
+        fz_matrix ctm = fz_scale(zoom, zoom);
+        rect = fz_transform_rect(rect, ctm);
+        fz_irect bbox = fz_round_rect(rect);
+
+        fz_pixmap* pix = fz_new_pixmap_with_bbox(g_session.ctx, fz_device_rgb(g_session.ctx), bbox, nullptr, 0);
+        fz_clear_pixmap_with_value(g_session.ctx, pix, 0xff);
+
+        fz_device* dev = fz_new_draw_device(g_session.ctx, ctm, pix);
+        fz_run_page(g_session.ctx, page, dev, fz_identity, nullptr);
+        fz_close_device(g_session.ctx, dev);
+        fz_drop_device(g_session.ctx, dev);
+
+        ensureParentDirectory(out);
+        fz_save_pixmap_as_jpeg(g_session.ctx, pix, out.c_str(), 65);
+
+        fz_drop_pixmap(g_session.ctx, pix);
+        fz_drop_page(g_session.ctx, page);
+        success = true;
+    }
+    fz_catch(g_session.ctx) {
+        LOGE("renderThumbnail error: %s", fz_caught_message(g_session.ctx));
+    }
+    return success ? JNI_TRUE : JNI_FALSE;
+#else
+    return writeTinyPng(normalizePath(jstringToStd(env, outputPath))) ? JNI_TRUE : JNI_FALSE;
+#endif
+}
+
+// ─── Extract Page Text with Quads (Session-based) ────────────
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_pdfpowertools_native_MuPDFBridge_extractPageText(
+        JNIEnv* env, jobject, jint pageIndex) {
+#ifdef HAS_MUPDF
+    if (!g_session.valid || !g_session.doc)
+        return env->NewStringUTF("{\"text\":\"\",\"blocks\":[]}");
+
+    std::string fullText;
+    fz_try(g_session.ctx) {
+        fz_page* page = fz_load_page(g_session.ctx, g_session.doc, pageIndex);
+        fz_stext_page* tp = fz_new_stext_page_from_page(g_session.ctx, page, nullptr);
+
+        // Extract text block by block for reading order
+        for (fz_stext_block* block = tp->first_block; block; block = block->next) {
+            if (block->type != FZ_STEXT_BLOCK_TEXT) continue;
+            for (fz_stext_line* line = block->u.t.first_line; line; line = line->next) {
+                for (fz_stext_char* ch = line->first_char; ch; ch = ch->next) {
+                    char buf[8];
+                    int n = fz_runetochar(buf, ch->c);
+                    fullText.append(buf, n);
+                }
+                fullText += '\n';
+            }
+        }
+        fz_drop_stext_page(g_session.ctx, tp);
+        fz_drop_page(g_session.ctx, page);
+    }
+    fz_catch(g_session.ctx) {
+        LOGE("extractPageText error: %s", fz_caught_message(g_session.ctx));
+    }
+
+    // Escape for JSON
+    std::string escaped;
+    for (char c : fullText) {
+        switch (c) {
+            case '"':  escaped += "\\\""; break;
+            case '\\': escaped += "\\\\"; break;
+            case '\n': escaped += "\\n";  break;
+            case '\r': escaped += "\\r";  break;
+            case '\t': escaped += "\\t";  break;
+            default: escaped += c;
+        }
+    }
+    std::string json = "{\"text\":\"" + escaped + "\"}";
+    return env->NewStringUTF(json.c_str());
+#else
+    return env->NewStringUTF("{\"text\":\"\",\"blocks\":[]}");
+#endif
+}
+
 #endif
 
 static bool writeTinyPng(const std::string& outputPath) {

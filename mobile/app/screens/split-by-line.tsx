@@ -1,28 +1,37 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput, Image, PanResponder, Animated, Dimensions } from 'react-native';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput, Image, PanResponder, Animated, useWindowDimensions } from 'react-native';
 import ToolShell from '../components/ToolShell';
 import { getOutputPath, ensureOutputDir } from '../utils/outputPath';
 import { useAppTheme } from '../context/ThemeContext';
-import { splitPdf, renderPageToImage } from '../utils/nativeModules';
+import { splitPdf, renderPageToImage, getPageCount, getPageDimensions } from '../utils/nativeModules';
 import { pickSinglePdf } from '../utils/filePicker';
 import { usePreselectedFile } from '../hooks/usePreselectedFile';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const PREVIEW_WIDTH = SCREEN_WIDTH - 40;
-const PREVIEW_HEIGHT = PREVIEW_WIDTH * 1.414; // A4 format ~ 1:1.414
+import * as FileSystem from 'expo-file-system/legacy';
 
 export default function SplitByLineScreen() {
   const { isDark } = useAppTheme();
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
+  const PREVIEW_WIDTH = SCREEN_WIDTH - 40;
   
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [pageRatio, setPageRatio] = useState(1.414); // default A4, updated from actual PDF
+  const [pageIndex, setPageIndex] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const prevPreviewPath = useRef<string | null>(null);
+
+  const PREVIEW_HEIGHT = PREVIEW_WIDTH * pageRatio;
 
   usePreselectedFile(setSelectedFile, setSelectedFileName);
 
   const [axis, setAxis] = useState<'vertical' | 'horizontal'>('vertical');
   const [scope, setScope] = useState<'all' | 'individual'>('all');
   const [ratio, setRatio] = useState('50');
+
+  // Use ref to avoid stale closure in PanResponder
+  const axisRef = useRef(axis);
+  useEffect(() => { axisRef.current = axis; }, [axis]);
 
   const textColor = isDark ? '#fff' : '#000';
   const cardBg = isDark ? '#1e1e1e' : '#f0f0f0';
@@ -42,24 +51,53 @@ export default function SplitByLineScreen() {
     return () => { panX.removeAllListeners(); panY.removeAllListeners(); };
   }, [panX, panY, lastPos]);
 
-  // Load preview image when a file is selected
+  // Load page count and dimensions when file is selected
   useEffect(() => {
     if (!selectedFile) {
       setPreviewImage(null);
+      setTotalPages(0);
+      setPageIndex(0);
       return;
     }
+    const loadMeta = async () => {
+      try {
+        const count = await getPageCount(selectedFile);
+        setTotalPages(count);
+        setPageIndex(0);
+        const [w, h] = await getPageDimensions(selectedFile, 1);
+        if (w > 0 && h > 0) setPageRatio(h / w);
+      } catch (e) {
+        console.warn('Failed to get page info:', e);
+      }
+    };
+    loadMeta();
+  }, [selectedFile]);
+
+  // Load preview image when file or page index changes
+  useEffect(() => {
+    if (!selectedFile) return;
     const loadPreview = async () => {
       try {
+        // Cleanup previous preview
+        if (prevPreviewPath.current) {
+          try { await FileSystem.deleteAsync(prevPreviewPath.current, { idempotent: true }); } catch {}
+        }
         await ensureOutputDir();
         const outputPath = getOutputPath(`preview_${Date.now()}.png`);
-        const success = await renderPageToImage(selectedFile, 0, outputPath, true);
-        if (success) setPreviewImage(`file://${outputPath}`);
+        const success = await renderPageToImage(selectedFile, pageIndex, outputPath, true);
+        if (success) {
+          setPreviewImage(`file://${outputPath}`);
+          prevPreviewPath.current = outputPath;
+        }
+        // Also update page dimensions for this specific page
+        const [w, h] = await getPageDimensions(selectedFile, pageIndex + 1);
+        if (w > 0 && h > 0) setPageRatio(h / w);
       } catch (e) {
         console.warn('Preview render failed:', e);
       }
     };
     loadPreview();
-  }, [selectedFile]);
+  }, [selectedFile, pageIndex]);
 
   // Sync state ratio -> animated visual line value (if user types manually)
   useEffect(() => {
@@ -73,7 +111,8 @@ export default function SplitByLineScreen() {
     }
   }, [ratio, axis, panX, panY, lastPos]);
 
-  const panResponder = useRef(
+  // Use useMemo so PanResponder reads latest axis from ref (no stale closure)
+  const panResponder = useMemo(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
@@ -83,7 +122,7 @@ export default function SplitByLineScreen() {
         panY.setValue(0);
       },
       onPanResponderMove: (_, gestureState) => {
-        if (axis === 'vertical') {
+        if (axisRef.current === 'vertical') {
           panX.setValue(gestureState.dx);
         } else {
           panY.setValue(gestureState.dy);
@@ -98,13 +137,13 @@ export default function SplitByLineScreen() {
         panX.setValue(safeX);
         panY.setValue(safeY);
         
-        const pct = axis === 'vertical'
+        const pct = axisRef.current === 'vertical'
           ? Math.round((safeX / PREVIEW_WIDTH) * 100)
           : Math.round((safeY / PREVIEW_HEIGHT) * 100);
         setRatio(String(Math.max(1, Math.min(99, pct))));
       }
-    })
-  ).current;
+    }),
+  [panX, panY, lastPos, PREVIEW_WIDTH, PREVIEW_HEIGHT]);
 
   const handlePickFile = async () => {
     try {
@@ -199,6 +238,28 @@ export default function SplitByLineScreen() {
               <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Drag the orange line</Text>
             </View>
           </View>
+          
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 16 }}>
+            <TouchableOpacity 
+              onPress={() => setPageIndex(p => Math.max(0, p - 1))}
+              disabled={pageIndex === 0}
+              style={[styles.smallBtn, pageIndex === 0 && { opacity: 0.3 }]}
+            >
+              <Text style={{ fontSize: 20 }}>◀️</Text>
+            </TouchableOpacity>
+            
+            <Text style={{ color: textColor, fontWeight: '600' }}>
+              Page {pageIndex + 1} of {totalPages}
+            </Text>
+
+            <TouchableOpacity 
+              onPress={() => setPageIndex(p => Math.min(totalPages - 1, p + 1))}
+              disabled={pageIndex >= totalPages - 1}
+              style={[styles.smallBtn, pageIndex >= totalPages - 1 && { opacity: 0.3 }]}
+            >
+              <Text style={{ fontSize: 20 }}>▶️</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -246,4 +307,5 @@ const styles = StyleSheet.create({
   scopeCard: { flex: 1, padding: 14, borderRadius: 12, borderWidth: 2 },
   input: { borderWidth: 1, borderRadius: 10, padding: 14, fontSize: 16, textAlign: 'center' },
   previewHint: { position: 'absolute', bottom: 10, left: 0, right: 0, alignItems: 'center' },
+  smallBtn: { padding: 8, backgroundColor: '#007AFF15', borderRadius: 8 },
 });

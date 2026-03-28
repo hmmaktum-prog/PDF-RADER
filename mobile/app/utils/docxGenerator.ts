@@ -52,6 +52,23 @@ export function createDocxDocument(blocks: DocumentBlock[], options: DocxOptions
         }));
         break;
 
+      case 'heading':
+        docxChildren.push(new docx.Paragraph({
+          spacing: spacingRules,
+          heading: block.level === 1 ? docx.HeadingLevel.HEADING_1 : docx.HeadingLevel.HEADING_2,
+          children: [
+            new docx.TextRun({
+              text: block.content as string,
+              bold: true,
+              font: defaultFont,
+              size: (block.level === 1 ? 16 : 14) * 2, // docx uses half-points
+              color: '2E75B5', // Standard Word heading blue
+            }),
+          ],
+          alignment: getAlignment(block.alignment || 'left'),
+        }));
+        break;
+
       case 'separator':
         docxChildren.push(new docx.Paragraph({
           spacing: spacingRules,

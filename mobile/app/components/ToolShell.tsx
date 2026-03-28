@@ -9,6 +9,7 @@ import {
   StatusBar,
   Platform,
   TextInput,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -128,11 +129,16 @@ export default function ToolShell({
   const handleContinue = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (resultPath) {
-      // Only share single PDF files downstream — directories (e.g. split output)
-      // must not be passed as the input path for the next tool because QPDF/MuPDF
-      // cannot open a directory as a PDF and will crash with a read error.
-      const isDirectory = resultPath.endsWith('/') ||
-        (!resultPath.includes('.', resultPath.lastIndexOf('/') + 1));
+      // Check if output is a directory — don't pass directories as input for next tool
+      let isDirectory = false;
+      try {
+        const info = await FileSystem.getInfoAsync(resultPath);
+        isDirectory = info.exists && ('isDirectory' in info) && (info as any).isDirectory;
+      } catch {
+        // Fallback heuristic if getInfoAsync fails
+        isDirectory = resultPath.endsWith('/') ||
+          (!resultPath.includes('.', resultPath.lastIndexOf('/') + 1));
+      }
       if (!isDirectory) {
         setSharedFilePath(resultPath);
       }
@@ -228,6 +234,7 @@ export default function ToolShell({
                 loop
                 style={{ width: 140, height: 140, marginBottom: 12 }}
                 colorFilters={[{ keypath: '**', color: accentColor }]}
+                onAnimationFailure={() => setLottieError(true)}
               />
             )}
             <Text style={[styles.stateTitle, { color: text }]}>Processing...</Text>
@@ -284,13 +291,35 @@ export default function ToolShell({
                   const mime = shareMimeType ?? inferred.mimeType ?? 'application/pdf';
                   
                   const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(permissions.directoryUri, fileName, mime);
-                  const base64 = await FileSystem.readAsStringAsync(resultPath, { encoding: FileSystem.EncodingType.Base64 });
-                  await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+                  
+                  // Use chunked reading/writing for large files (> 10MB) to prevent OOM
+                  const fileInfo = await FileSystem.getInfoAsync(resultPath);
+                  const fileSize = (fileInfo as any).size || 0;
+                  const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
+
+                  if (fileSize > CHUNK_SIZE) {
+                    let position = 0;
+                    while (position < fileSize) {
+                      const chunk = await FileSystem.readAsStringAsync(resultPath, {
+                        encoding: FileSystem.EncodingType.Base64,
+                        length: CHUNK_SIZE,
+                        position: position
+                      });
+                      await FileSystem.writeAsStringAsync(fileUri, chunk, { 
+                        encoding: FileSystem.EncodingType.Base64,
+                        append: position > 0 
+                      });
+                      position += CHUNK_SIZE;
+                    }
+                  } else {
+                    const base64 = await FileSystem.readAsStringAsync(resultPath, { encoding: FileSystem.EncodingType.Base64 });
+                    await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+                  }
                   
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  alert('File saved successfully to device.');
+                  Alert.alert('Success', 'File saved successfully to device.');
                 } catch (e: any) {
-                  alert('Error saving file: ' + e.message);
+                  Alert.alert('Error', 'Error saving file: ' + e.message);
                 }
               }} 
               activeOpacity={0.85}

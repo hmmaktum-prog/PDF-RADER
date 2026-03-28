@@ -67,7 +67,7 @@ export default function CompressScreen() {
   const handleCompress = async (onProgress: (pct: number, label?: string) => void) => {
     if (!selectedFile) throw new Error('Please select a PDF file first');
     await ensureOutputDir();
-    const outputPath = getOutputPath('compressed_output.pdf');
+    const outputPath = getOutputPath(`compressed_${Date.now()}.pdf`);
     const q = parseInt(imgQuality) || 70;
     const s = parseInt(resScale) || 100;
     onProgress(25, `Compressing (Grayscale: ${grayscale})...`);

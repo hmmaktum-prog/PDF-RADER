@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 
-export type BlockType = 'paragraph' | 'list' | 'table' | 'header' | 'footer' | 'separator' | 'page_break';
+export type BlockType = 'paragraph' | 'heading' | 'list' | 'table' | 'header' | 'footer' | 'separator' | 'page_break' | 'formula';
 
 export interface DocumentBlock {
   type: BlockType;
@@ -10,6 +11,7 @@ export interface DocumentBlock {
   is_underline?: boolean;
   alignment?: 'left' | 'center' | 'right' | 'justify';
   separator_style?: 'single' | 'double' | 'dotted' | 'dashed';
+  level?: number; // For headings (1, 2, 3)
   metadata?: any;
 }
 
@@ -166,7 +168,6 @@ export async function extractTextWithGemini(options: GeminiOcrOptions): Promise<
     const parts: any[] = [{ text: fullPrompt }];
     
     // Read the chunk's files from disk natively to avoid OOM
-    const FileSystem = require('expo-file-system/legacy');
     for (const imgPath of chunkPaths) {
       const b64 = await FileSystem.readAsStringAsync(imgPath, { encoding: FileSystem.EncodingType.Base64 });
       parts.push({ inline_data: { mime_type: 'image/jpeg', data: b64 } });

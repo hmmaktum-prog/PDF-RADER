@@ -63,6 +63,21 @@ export interface OcrPageResult {
   pageNumber: number;
   imagePath:  string;
   result:     OcrResult;
+  blocks:      DocumentBlock[]; // Semantic blocks for this page
+}
+
+/** 
+ * DocumentBlock matches the format used by Gemini and DOCX services 
+ * to ensure consistent formatting across AI and OCR features.
+ */
+export interface DocumentBlock {
+  type: 'paragraph' | 'heading' | 'list' | 'table' | 'formula' | 'separator';
+  content: string | string[] | string[][];
+  level?: number;
+  is_bold?: boolean;
+  is_italic?: boolean;
+  is_underline?: boolean;
+  alignment?: 'left' | 'center' | 'right' | 'justify';
 }
 
 /* ─── Options ─────────────────────────────────────────────────── */
@@ -179,10 +194,6 @@ export async function detectMathFormulas(
 
 /* ─── Standalone PP-Layout analysis ──────────────────────────── */
 
-/**
- * Run full PP-Layout analysis on a set of OCR boxes.
- * Returns boxes enriched with type, columnIndex, readingOrder + layout summary.
- */
 export async function analyzeDocumentLayout(
   boxes: OcrBox[],
   imgWidth: number,
@@ -192,6 +203,66 @@ export async function analyzeDocumentLayout(
     return { boxes, layoutInfo: { columns: 1, titles: 0, headings: 0, paragraphs: 0, tableCells: 0, formulas: 0, listItems: 0 } };
   }
   return getLayoutInfo(boxes, imgWidth, imgHeight);
+}
+
+/**
+ * Heuristic: Merge raw OCR boxes into semantic paragraphs/headings.
+ * This is crucial for high-quality DOCX and Markdown export.
+ */
+export function mergeBoxesIntoBlocks(boxes: OcrBox[]): DocumentBlock[] {
+  if (!boxes || boxes.length === 0) return [];
+
+  // 1. Sort by vertical position (Y1), then horizontal (X1) 
+  const sorted = [...boxes].sort((a, b) => {
+    const yDiff = a.y1 - b.y1;
+    if (Math.abs(yDiff) > 8) return yDiff; // Different lines
+    return a.x1 - b.x1; // Same line
+  });
+
+  const blocks: DocumentBlock[] = [];
+  let currentGroup: OcrBox[] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    const box = sorted[i];
+    if (currentGroup.length === 0) {
+      currentGroup.push(box);
+      continue;
+    }
+
+    const last = currentGroup[currentGroup.length - 1];
+    const avgHeight = (last.y2 - last.y1 + box.y2 - box.y1) / 2;
+    const verticalDist = box.y1 - last.y1;
+
+    // HEURISTIC: Merge if vertical distance is within 1.6x line height
+    const isSamePara = verticalDist < avgHeight * 1.6;
+
+    if (isSamePara) {
+      currentGroup.push(box);
+    } else {
+      blocks.push(paraToBlock(currentGroup));
+      currentGroup = [box];
+    }
+  }
+
+  if (currentGroup.length > 0) {
+    blocks.push(paraToBlock(currentGroup));
+  }
+
+  return blocks;
+}
+
+function paraToBlock(boxes: OcrBox[]): DocumentBlock {
+  const text = boxes.map(b => b.text).join(' ').replace(/\s+/g, ' ').trim();
+  
+  // Basic heading detection
+  const isShort = text.length < 70;
+  const isAllCaps = text.length > 6 && text === text.toUpperCase();
+  
+  if (isShort && (isAllCaps || boxes.length === 1)) {
+    return { type: 'heading', content: text, level: 2 };
+  }
+
+  return { type: 'paragraph', content: text };
 }
 
 /* ─── Full PDF OCR pipeline ───────────────────────────────────── */
@@ -242,8 +313,17 @@ export async function performOfflineOcr(options: OfflineOcrOptions): Promise<{
 
   for (let i = 0; i < imagePaths.length; i++) {
     onProgress?.(i + 1, imagePaths.length, 'recognizing');
-    const result = await recognizeImageOcr(imagePaths[i], language, false);
-    pages.push({ pageNumber: i + 1, imagePath: imagePaths[i], result });
+    const result = await recognizeImageOcr(imagePaths[i], language, true);
+    
+    // Merge raw results into semantic blocks
+    const blocks = mergeBoxesIntoBlocks(result.boxes);
+    
+    pages.push({ 
+      pageNumber: i + 1, 
+      imagePath: imagePaths[i], 
+      result,
+      blocks
+    });
 
     if (result.fullText) {
       if (combinedText && i > 0) combinedText += `\n\n--- Page ${i + 1} ---\n`;
@@ -260,7 +340,7 @@ export async function performOfflineOcr(options: OfflineOcrOptions): Promise<{
     ? await extractKeyInfo(combinedText)
     : { dates: [], amounts: [], referenceNumbers: [], emails: [], phones: [], urls: [] };
 
-  const allBoxes: OcrBox[] = pages.flatMap(p => p.result.boxes);
+  const allBoxes: OcrBox[] = pages.reduce((acc, p) => acc.concat(p.result.boxes), [] as OcrBox[]);
 
   // Combined layout info (sum across pages)
   const combinedLayout: LayoutInfo = pages.reduce((acc, p) => {

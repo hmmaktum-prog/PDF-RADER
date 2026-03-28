@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
-  Dimensions,
   Modal,
   StatusBar,
   StyleSheet,
@@ -11,12 +10,13 @@ import {
   ScrollView,
   TextInput,
   FlatList,
+  useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
-import Pdf from 'react-native-pdf';
+import MuPdfViewer from '../components/MuPdfViewer';
 import {
   compressPdf,
   imagesToPdf,
@@ -34,7 +34,6 @@ import { useContinueTool } from '../context/ContinueContext';
 
 type ReaderMode = 'book' | 'vertical' | 'horizontal';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
 const LAST_PAGE_PREFIX = 'reader:lastPage:';
 const BOOKMARK_PREFIX = 'reader:bookmarks:';
 
@@ -58,13 +57,36 @@ export default function ReaderScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ page: number; hits: number }[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchResultIndex, setSearchResultIndex] = useState(0);
+
+  // Bookmark list modal
+  const [showBookmarkList, setShowBookmarkList] = useState(false);
+
+  // Page jump modal
+  const [showPageJump, setShowPageJump] = useState(false);
+  const [pageJumpText, setPageJumpText] = useState('');
 
   // TOC state
   const [showTOC, setShowTOC] = useState(false);
   const [toc, setToc] = useState<any[]>([]);
   const [isLoadingTOC, setIsLoadingTOC] = useState(false);
   
-  const pdfRef = useRef<any>(null);
+  const viewerRef = useRef<any>(null);
+
+  const { width: windowWidth } = useWindowDimensions();
+  const dynamicStyles = useMemo(() => {
+    return {
+      pdf: { flex: 1, width: windowWidth },
+      toolCard: {
+        width: (windowWidth - 32 - 12 - 12) / 3,
+        alignItems: 'center' as const, 
+        paddingVertical: 14, 
+        paddingHorizontal: 4,
+        borderRadius: 16, 
+        borderWidth: 1,
+      },
+    };
+  }, [windowWidth]);
 
   const docKey = useMemo(() => (pdfPath ? pdfPath.replace(/[^\w]/g, '_') : 'none'), [pdfPath]);
   const lastPageKey = `${LAST_PAGE_PREFIX}${docKey}`;
@@ -182,11 +204,10 @@ export default function ReaderScreen() {
   const jumpToPage = useCallback((page: number) => {
     const safe = Math.min(Math.max(1, page), Math.max(1, pageCount));
     setCurrentPage(safe);
-    pdfRef.current?.setPage(safe);
+    // MuPdfViewer handles page change internally
   }, [pageCount]);
 
   const [isInverting, setIsInverting] = useState(false);
-  const [annoMode, setAnnoMode] = useState<'none' | 'highlight' | 'underline'>('none');
 
   const handleSmartInvert = useCallback(async () => {
     if (!pdfPath) return;
@@ -255,18 +276,6 @@ export default function ReaderScreen() {
         <TouchableOpacity onPress={() => setShowSearch(true)} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>🔍 Search</Text></TouchableOpacity>
         <TouchableOpacity onPress={loadTOC} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>📖 TOC</Text></TouchableOpacity>
         <TouchableOpacity 
-          onPress={() => setAnnoMode(annoMode === 'highlight' ? 'none' : 'highlight')} 
-          style={[styles.controlBtn, { backgroundColor: annoMode === 'highlight' ? '#FFD60A' : night ? '#222' : '#ffffff' }]}
-        >
-          <Text style={{ color: annoMode === 'highlight' ? '#000' : text }}>✏️ High</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          onPress={() => setAnnoMode(annoMode === 'underline' ? 'none' : 'underline')} 
-          style={[styles.controlBtn, { backgroundColor: annoMode === 'underline' ? '#32D74B' : night ? '#222' : '#ffffff' }]}
-        >
-          <Text style={{ color: annoMode === 'underline' ? '#000' : text }}>下 Under</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
           onPress={handleSmartInvert} 
           disabled={isInverting}
           style={[styles.controlBtn, { backgroundColor: night ? '#444' : '#ffffff', borderColor: '#007AFF', borderWidth: night ? 0 : 1 }]}
@@ -275,23 +284,28 @@ export default function ReaderScreen() {
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setNight((v) => !v)} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>{night ? '☀️' : '🌙'}</Text></TouchableOpacity>
         <TouchableOpacity onPress={toggleBookmark} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>{bookmarks.includes(currentPage) ? '🔖' : '📑'}</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowBookmarkList(true)} style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}><Text style={{ color: text }}>📋</Text></TouchableOpacity>
+        <TouchableOpacity 
+          onPress={() => setMode(m => m === 'vertical' ? 'horizontal' : m === 'horizontal' ? 'book' : 'vertical')} 
+          style={[styles.controlBtn, { backgroundColor: night ? '#222' : '#ffffff' }]}
+        >
+          <Text style={{ color: text }}>{mode === 'vertical' ? '📜' : mode === 'horizontal' ? '📖' : '📄'}</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.readerWrap}>
         {pdfPath ? (
-          <Pdf
-            ref={pdfRef}
-            source={{ uri: pdfPath }}
-            onLoadComplete={(numberOfPages) => setPageCount(numberOfPages)}
-            onPageChanged={(page) => setCurrentPage(page)}
-            onError={(error) => Alert.alert('PDF Error', String(error))}
-            trustAllCerts={false}
-            horizontal={mode === 'horizontal' || mode === 'book'}
-            enablePaging={mode === 'book' || mode === 'horizontal'}
-            style={[styles.pdf, { backgroundColor: night ? '#1a1a1a' : '#fff' }]}
-            fitPolicy={0}
-            spacing={10}
-            enableAnnotationRendering={true}
+          <MuPdfViewer
+            source={pdfPath}
+            mode={mode}
+            nightMode={night}
+            initialPage={currentPage}
+            onPageChanged={(page, total) => {
+              setCurrentPage(page);
+              setPageCount(total);
+            }}
+            onDocumentLoaded={(total) => setPageCount(total)}
+            onError={(err) => Alert.alert('PDF Error', err)}
           />
         ) : (
           <View style={[styles.emptyState, { backgroundColor: bg }]}>
@@ -334,6 +348,38 @@ export default function ReaderScreen() {
           </View>
         )}
       </View>
+
+      {/* Bookmark List Modal */}
+      <Modal visible={showBookmarkList} animationType="slide" transparent>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.tocContainer, { backgroundColor: night ? '#1a1a1a' : '#fff' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: text }]}>Bookmarks</Text>
+              <TouchableOpacity onPress={() => setShowBookmarkList(false)}>
+                <Text style={{ color: '#007AFF', fontWeight: '700' }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            {bookmarks.length === 0 ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ color: '#888' }}>No bookmarks yet.</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={bookmarks}
+                keyExtractor={(item) => String(item)}
+                renderItem={({ item }) => (
+                  <TouchableOpacity 
+                    onPress={() => { jumpToPage(item); setShowBookmarkList(false); }}
+                    style={{ paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: night ? '#333' : '#eee' }}
+                  >
+                    <Text style={{ color: text, fontSize: 16 }}>Page {item}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* Search Modal */}
       <Modal visible={showSearch} animationType="fade" transparent>
@@ -422,7 +468,7 @@ export default function ReaderScreen() {
                   <View style={styles.toolsGrid}>
                     {section.data.map(tool => (
                       <TouchableOpacity key={tool.id} onPress={() => executeTool(tool.route)} activeOpacity={0.7}>
-                        <View style={[styles.toolCard, { borderColor: night ? '#333' : '#eee', backgroundColor: night ? '#222' : '#fafafa' }]}>
+                        <View style={[dynamicStyles.toolCard, { borderColor: night ? '#333' : '#eee', backgroundColor: night ? '#222' : '#fafafa' }]}>
                           <LinearGradient colors={tool.grad} style={styles.toolIconBg}>
                             <Text style={{ fontSize: 24 }}>{tool.icon}</Text>
                           </LinearGradient>
@@ -458,7 +504,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: '700' },
   recentItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, marginBottom: 8 },
   recentName: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
-  pdf: { flex: 1, width: SCREEN_WIDTH },
+  pdf: { flex: 1 },
   modalBackdrop: { flex: 1, backgroundColor: '#000000a0', justifyContent: 'flex-end' },
   modalDocCard: { height: '80%', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 16 },
   searchContainer: { height: '90%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
@@ -469,11 +515,6 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: '800' },
   modalSectionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.2, marginBottom: 12 },
   toolsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  toolCard: {
-    width: (SCREEN_WIDTH - 32 - 12 - 12) / 3,
-    alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4,
-    borderRadius: 16, borderWidth: 1,
-  },
   toolIconBg: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   toolCardName: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
 });
