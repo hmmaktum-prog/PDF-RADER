@@ -97,6 +97,10 @@ if(EXISTS "${QPDF_INCLUDE_DIR}" AND EXISTS "${QPDF_LIB_DIR}/libqpdf.so")
   target_compile_definitions(pdfpowertools_native PRIVATE HAS_QPDF=1 POINTERHOLDER_TRANSITION=0)
   target_link_libraries(pdfpowertools_native qpdf)
   message(STATUS "QPDF    ENABLED → ${QPDF_LIB_DIR}/libqpdf.so")
+else()
+  message(STATUS "QPDF NOT FOUND for ABI=${_PDF_NATIVE_ABI} — building stub only")
+endif()
+
 # ── Paddle-Lite: declare as IMPORTED SHARED ───────────────────────────────────
 set(PADDLE_INCLUDE_DIR "${PDF_NATIVE_THIRD_PARTY_DIR}/paddle-lite/include")
 set(PADDLE_LIB_DIR     "${PDF_NATIVE_THIRD_PARTY_DIR}/paddle-lite/libs/${_PDF_NATIVE_ABI}")

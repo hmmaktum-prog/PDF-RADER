@@ -356,6 +356,41 @@ jobs:
             fi
           done
 
+      - name: Download Paddle-Lite Prebuilts
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          THIRD="mobile/native/third_party"
+          mkdir -p "$THIRD/paddle-lite/libs/arm64-v8a"
+          mkdir -p "$THIRD/paddle-lite/libs/x86_64"
+          mkdir -p "$THIRD/paddle-lite/include"
+
+          echo "Downloading Paddle-Lite v2.12 Android arm64 prebuilt (official PaddlePaddle)..."
+          ARM64_URL="https://github.com/PaddlePaddle/Paddle-Lite/releases/download/v2.12/inference_lite_lib.android.armv8.clang.c%2B%2B_shared.tar.gz"
+          if curl -fL -o /tmp/paddle-arm64.tar.gz "$ARM64_URL"; then
+            mkdir -p /tmp/paddle-arm64
+            tar -xzf /tmp/paddle-arm64.tar.gz -C /tmp/paddle-arm64 --strip-components=1
+            ARM64_SO=$(find /tmp/paddle-arm64 -name 'libpaddle_light_api_shared.so' | head -1)
+            PADDLE_INC=$(find /tmp/paddle-arm64 -name 'paddle_api.h' -exec dirname {} \; | head -1)
+            [[ -n "$ARM64_SO" ]] && cp "$ARM64_SO" "$THIRD/paddle-lite/libs/arm64-v8a/" && echo "✓ arm64 SO ready"
+            [[ -n "$PADDLE_INC" ]] && cp -r "$PADDLE_INC/." "$THIRD/paddle-lite/include/" && echo "✓ headers copied"
+            rm -rf /tmp/paddle-arm64 /tmp/paddle-arm64.tar.gz
+          else
+            echo "⚠ Paddle-Lite arm64 download failed — build continues without Paddle OCR"
+          fi
+
+          echo "Downloading Paddle-Lite v2.12 Android x86_64 prebuilt..."
+          X86_URL="https://github.com/PaddlePaddle/Paddle-Lite/releases/download/v2.12/inference_lite_lib.android.intel_x86.clang.c%2B%2B_shared.tar.gz"
+          if curl -fL -o /tmp/paddle-x86.tar.gz "$X86_URL"; then
+            mkdir -p /tmp/paddle-x86
+            tar -xzf /tmp/paddle-x86.tar.gz -C /tmp/paddle-x86 --strip-components=1
+            X86_SO=$(find /tmp/paddle-x86 -name 'libpaddle_light_api_shared.so' | head -1)
+            [[ -n "$X86_SO" ]] && cp "$X86_SO" "$THIRD/paddle-lite/libs/x86_64/" && echo "✓ x86_64 SO ready"
+            rm -rf /tmp/paddle-x86 /tmp/paddle-x86.tar.gz
+          else
+            echo "⚠ Paddle-Lite x86_64 download failed — build continues without Paddle OCR (x86)"
+          fi
+          echo "✓ Paddle-Lite step complete."
+
       - name: Copy headers
         if: steps.check.outputs.skip != 'true'
         run: |

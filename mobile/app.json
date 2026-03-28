@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "PDF Power Tools",
-    "slug": "pdf-reader-",
+    "slug": "pdf-reader",
     "owner": "m125",
     "scheme": "pdfpowertools",
     "version": "1.0.0",
