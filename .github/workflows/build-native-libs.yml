@@ -456,6 +456,7 @@ jobs:
           add_library(mupdf SHARED IMPORTED)
           set_target_properties(mupdf PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/mupdf/libs/${CMAKE_ANDROID_ARCH_ABI}/libmupdf.so")
           
+          target_link_options(pdfpowertools_native PRIVATE -Wl,--no-fatal-warnings)
           target_link_libraries(pdfpowertools_native ${LINK_LIBS})
           EOF
           
@@ -466,6 +467,7 @@ jobs:
               -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
               -DANDROID_ABI="$ABI" -DANDROID_PLATFORM=android-24 \
               -DANDROID_STL=c++_shared -DCMAKE_BUILD_TYPE=Release \
+              "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,--no-fatal-warnings" \
               -S "$SRC/standalone" -B "$SRC/standalone/build-$ABI" -G Ninja || exit 1
             
             ninja -C "$SRC/standalone/build-$ABI" || exit 1
