@@ -554,12 +554,12 @@ export default function OcrScreen() {
                 })()}
 
                 {/* Reading-order list */}
-                {lastResult.boxes.length > 0 && (
+                {(lastResult.boxes?.length ?? 0) > 0 && (
                   <View style={{ marginTop: 10 }}>
                     <Text style={{ color: muted, fontSize: 11, marginBottom: 6 }}>
                       Reading order (first 20 blocks):
                     </Text>
-                    {lastResult.boxes
+                    {(lastResult.boxes ?? [])
                       .filter(b => b.readingOrder !== undefined)
                       .sort((a, b) => (a.readingOrder ?? 0) - (b.readingOrder ?? 0))
                       .slice(0, 20)
@@ -567,7 +567,7 @@ export default function OcrScreen() {
                         <Text key={idx} style={{ color: muted, fontSize: 11, lineHeight: 18 }}>
                           [{b.readingOrder}] {b.type}:{' '}
                           <Text style={{ color: textColor }}>
-                            {b.text.length > 40 ? b.text.slice(0, 40) + '…' : b.text}
+                            {(b.text ?? '').length > 40 ? (b.text ?? '').slice(0, 40) + '…' : (b.text ?? '')}
                           </Text>
                         </Text>
                       ))}

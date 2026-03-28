@@ -102,14 +102,17 @@ static FloatImg prepDet(const RGBAImg& src, int maxLen = 736) {
     int nh = std::max(32, (int)std::round(src.h * ratio / 32) * 32);
     RGBAImg r = resize(src, nw, nh);
     FloatImg o; o.w = nw; o.h = nh; o.c = 3; o.data.resize(3 * nw * nh);
-    const float mB=0.406f,mG=0.456f,mR=0.485f,sB=0.225f,sG=0.224f,sR=0.229f;
+    // ImageNet mean/std in RGB order (PaddleOCR det model expects RGB CHW)
+    const float mR=0.485f,mG=0.456f,mB=0.406f,sR=0.229f,sG=0.224f,sB=0.225f;
     for (int y = 0; y < nh; ++y)
         for (int x = 0; x < nw; ++x) {
             int i = (y*nw+x)*4;
+            // Kotlin stores pixels as A(0) R(1) G(2) B(3)
             float fR = r.data[i+1]/255.f, fG = r.data[i+2]/255.f, fB = r.data[i+3]/255.f;
-            o.data[0*nh*nw + y*nw+x] = (fB-mB)/sB;
+            // CHW layout — channel 0=R, 1=G, 2=B (RGB, matching PaddleOCR training)
+            o.data[0*nh*nw + y*nw+x] = (fR-mR)/sR;
             o.data[1*nh*nw + y*nw+x] = (fG-mG)/sG;
-            o.data[2*nh*nw + y*nw+x] = (fR-mR)/sR;
+            o.data[2*nh*nw + y*nw+x] = (fB-mB)/sB;
         }
     return o;
 }
@@ -123,10 +126,12 @@ static FloatImg prepRec(const RGBAImg& src) {
     for (int y = 0; y < nh; ++y)
         for (int x = 0; x < nw; ++x) {
             int i = (y*nw+x)*4;
+            // Kotlin: A(0) R(1) G(2) B(3)
             float fR = r.data[i+1]/255.f, fG = r.data[i+2]/255.f, fB = r.data[i+3]/255.f;
-            o.data[0*nh*nw + y*nw+x] = (fB-0.5f)/0.5f;
+            // CHW — channel 0=R, 1=G, 2=B (RGB, mean/std=0.5 symmetric)
+            o.data[0*nh*nw + y*nw+x] = (fR-0.5f)/0.5f;
             o.data[1*nh*nw + y*nw+x] = (fG-0.5f)/0.5f;
-            o.data[2*nh*nw + y*nw+x] = (fR-0.5f)/0.5f;
+            o.data[2*nh*nw + y*nw+x] = (fB-0.5f)/0.5f;
         }
     return o;
 }
@@ -256,11 +261,25 @@ struct FormulaRegion {
     std::string latex; // best-effort LaTeX representation
 };
 
+// Count UTF-8 codepoints (not bytes) so Bengali/Arabic chars are counted correctly
+static int utf8CharCount(const std::string& s) {
+    int n = 0;
+    for (size_t i = 0; i < s.size(); ) {
+        unsigned char c = (unsigned char)s[i];
+        if      (c < 0x80) i += 1;
+        else if (c < 0xE0) i += 2;
+        else if (c < 0xF0) i += 3;
+        else               i += 4;
+        n++;
+    }
+    return n;
+}
+
 // Score how "formula-like" a text string is (0.0 – 1.0)
 static float formulaScore(const std::string& txt) {
     if (txt.empty()) return 0.f;
     float score = 0.f;
-    int len = (int)txt.size();
+    int len = utf8CharCount(txt);  // use codepoints, not bytes
 
     // Math operators and symbols
     const char* mathSymbols[] = {
@@ -611,16 +630,21 @@ static std::vector<TableResult> reconstructTables(
     for (int i=0; i<n; i++) {
         if (tableId[i] == -1) tableId[i] = nextTable++;
         for (int j=i+1; j<n; j++) {
-            if (tableId[j] != -1) continue;
-            // Check if j is near i vertically or horizontally
             int h1 = cells[i].y2-cells[i].y1+1;
             int h2 = cells[j].y2-cells[j].y1+1;
             int avgH = (h1+h2)/2;
             bool verticallyClose = abs(cells[j].y1 - cells[i].y2) < avgH*3 ||
                                    abs(cells[i].y1 - cells[j].y2) < avgH*3 ||
                                    (cells[i].y1 <= cells[j].y2+avgH && cells[j].y1 <= cells[i].y2+avgH);
-            if (verticallyClose) {
+            if (!verticallyClose) continue;
+            if (tableId[j] == -1) {
+                // New cell — join i's table
                 tableId[j] = tableId[i];
+            } else if (tableId[j] != tableId[i]) {
+                // Two distinct groups overlap — merge the larger absorbs the smaller
+                int keep = tableId[i], drop = tableId[j];
+                for (int k = 0; k < n; k++)
+                    if (tableId[k] == drop) tableId[k] = keep;
             }
         }
     }
