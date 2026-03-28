@@ -48,10 +48,15 @@ const nativePaddleModule = NativeModules.PaddleOCRBridge;
 const hasNativePaddleModule = !!nativePaddleModule;
 
 const PaddleOCRBridge: any = nativePaddleModule ?? {
-  recognizeImage: () => Promise.resolve({ text: '', confidence: 0 }),
-  downloadModel: () => Promise.resolve(true),
+  initEngine:        () => Promise.resolve(false),
+  isEngineReady:     () => Promise.resolve(false),
+  releaseEngine:     () => Promise.resolve(true),
+  recognizeImage:    () => Promise.resolve(JSON.stringify({ success: false, error: 'Paddle not linked', boxes: [], fullText: '', keyInfo: {} })),
+  detectOnly:        () => Promise.resolve(JSON.stringify({ boxes: [] })),
+  extractKIE:        () => Promise.resolve(JSON.stringify({ dates: [], amounts: [], referenceNumbers: [], emails: [], phones: [], urls: [] })),
+  downloadModel:     () => Promise.resolve(false),
   isModelDownloaded: () => Promise.resolve(false),
-  releaseEngine: () => Promise.resolve(true),
+  isPaddleLinked:    () => Promise.resolve(false),
 };
 
 function ensureAndroid(name: string): void {
@@ -465,33 +470,133 @@ export async function batchRenderPages(
   );
 }
 
-// ──────────────────────────────────────────────
-// PaddleOCR Operations (Offline OCR)
-// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
+// PaddleOCR Operations — PP-OCRv5 Detection + Recognition + Structure + KIE
+// ──────────────────────────────────────────────────────────────────────────────
 
-export async function isPaddleModelDownloaded(language: string): Promise<boolean> {
+/** Types for full OCR results */
+export interface OcrBox {
+  x1: number; y1: number; x2: number; y2: number;
+  text: string;
+  type: 'title' | 'heading' | 'text' | 'header' | 'footer' | 'table_cell' | string;
+  confidence: number;
+}
+
+export interface KIEResult {
+  dates: string[];
+  amounts: string[];
+  referenceNumbers: string[];
+  emails: string[];
+  phones: string[];
+  urls: string[];
+}
+
+export interface OcrResult {
+  success: boolean;
+  language: string;
+  fullText: string;
+  boxes: OcrBox[];
+  keyInfo: KIEResult;
+  error?: string;
+}
+
+/** Initialize detection + recognition engine for a language */
+export async function initOcrEngine(language: string): Promise<boolean> {
   if (!isAndroidPlatform) return false;
   try {
-    return await PaddleOCRBridge.isModelDownloaded(language);
+    return await PaddleOCRBridge.initEngine(language);
   } catch {
     return false;
   }
 }
 
-export async function recognizeImageOcr(imagePath: string, language: string): Promise<{ text: string, confidence: number }> {
+export async function isOcrEngineReady(): Promise<boolean> {
+  if (!isAndroidPlatform) return false;
+  try { return await PaddleOCRBridge.isEngineReady(); } catch { return false; }
+}
+
+export async function releaseOcrEngine(): Promise<void> {
+  if (!isAndroidPlatform) return;
+  try { await PaddleOCRBridge.releaseEngine(); } catch (e) { console.warn('OCR release failed', e); }
+}
+
+/**
+ * PP-OCRv5 full pipeline:
+ *   Detection → Recognition → Layout (PP-Structure v2) → KIE
+ * Returns structured OcrResult with boxes, fullText, and keyInfo.
+ */
+export async function recognizeImageOcr(
+  imagePath: string,
+  language: string,
+  runKIE = true
+): Promise<OcrResult> {
   ensureAndroid('recognizeImageOcr');
   try {
-    return await PaddleOCRBridge.recognizeImage(imagePath, language);
+    const json: string = await PaddleOCRBridge.recognizeImage(imagePath, language, runKIE);
+    return JSON.parse(json) as OcrResult;
   } catch (e: any) {
     throw new Error(`OCR Recognition failed: ${e.message}`);
   }
 }
 
-export async function releaseOcrEngine(): Promise<void> {
-  if (!isAndroidPlatform) return;
+/**
+ * PP-OCRv5 Detection only — returns bounding boxes without running recognition.
+ * Faster when you only need text regions, not text content.
+ */
+export async function detectTextRegions(
+  imagePath: string
+): Promise<{ boxes: Array<{ x1: number; y1: number; x2: number; y2: number; score: number }> }> {
+  if (!isAndroidPlatform) return { boxes: [] };
   try {
-    await PaddleOCRBridge.releaseEngine();
-  } catch (e) {
-    console.warn('OCR Engine release failed', e);
+    const json: string = await PaddleOCRBridge.detectOnly(imagePath);
+    return JSON.parse(json);
+  } catch { return { boxes: [] }; }
+}
+
+/**
+ * Key Information Extraction on plain text — no image needed.
+ * Extracts: dates, amounts, reference numbers, emails, phones, URLs.
+ * Can be used after Gemini OCR or any other text source.
+ */
+export async function extractKeyInfo(text: string): Promise<KIEResult> {
+  if (!isAndroidPlatform) {
+    return { dates: [], amounts: [], referenceNumbers: [], emails: [], phones: [], urls: [] };
   }
+  try {
+    const json: string = await PaddleOCRBridge.extractKIE(text);
+    return JSON.parse(json) as KIEResult;
+  } catch {
+    return { dates: [], amounts: [], referenceNumbers: [], emails: [], phones: [], urls: [] };
+  }
+}
+
+export async function isPaddleModelDownloaded(language: string): Promise<boolean> {
+  if (!isAndroidPlatform) return false;
+  try { return await PaddleOCRBridge.isModelDownloaded(language); } catch { return false; }
+}
+
+export async function downloadOcrModel(
+  language: string,
+  onProgress?: (pct: number) => void
+): Promise<boolean> {
+  if (!isAndroidPlatform) return false;
+  try {
+    // Subscribe to native progress events if callback provided
+    let sub: any;
+    if (onProgress) {
+      const { NativeEventEmitter, NativeModules: NM } = require('react-native');
+      const emitter = new NativeEventEmitter(NM.PaddleOCRBridge);
+      sub = emitter.addListener('PaddleModelDownloadProgress', (e: any) => {
+        if (e.language === language) onProgress(e.progress as number);
+      });
+    }
+    const ok = await PaddleOCRBridge.downloadModel(language);
+    sub?.remove();
+    return ok;
+  } catch { return false; }
+}
+
+export async function isPaddleLinked(): Promise<boolean> {
+  if (!isAndroidPlatform) return false;
+  try { return await PaddleOCRBridge.isPaddleLinked(); } catch { return false; }
 }

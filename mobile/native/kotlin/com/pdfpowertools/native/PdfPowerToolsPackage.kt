@@ -10,6 +10,7 @@ class PdfPowerToolsPackage : ReactPackage {
     return listOf(
       QPDFBridgeRNModule(reactContext),
       MuPDFBridgeRNModule(reactContext),
+      PaddleOCRBridgeRNModule(reactContext),
     )
   }
 
@@ -17,4 +18,3 @@ class PdfPowerToolsPackage : ReactPackage {
     return emptyList()
   }
 }
-
