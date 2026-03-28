@@ -843,8 +843,9 @@ Java_com_pdfpowertools_native_MuPDFBridge_searchPdfText(
         bool first = true;
         for (int i = 0; i < pages; ++i) {
             fz_page* page = fz_load_page(ctx, doc, i);
-            fz_rect rects[100];
-            int hits = fz_search_page(ctx, page, q.c_str(), rects, 100);
+            fz_quad quads[100];
+            int hit_mark = 0;
+            int hits = fz_search_page(ctx, page, q.c_str(), &hit_mark, quads, 100);
             if (hits > 0) {
                 if (!first) resultsJson += ",";
                 resultsJson += "{\"page\":" + std::to_string(i + 1) + ",\"hits\":" + std::to_string(hits) + "}";
@@ -866,7 +867,7 @@ Java_com_pdfpowertools_native_MuPDFBridge_searchPdfText(
 }
 
 #ifdef HAS_MUPDF
-static void walkOutline(fz_context* ctx, fz_outline* node, std::string& json, int depth) {
+static void walkOutline(fz_context* ctx, fz_document* doc, fz_outline* node, std::string& json, int depth) {
     while (node) {
         if (json.back() == '}') json += ",";
         json += "{\"title\":\"";
@@ -876,10 +877,11 @@ static void walkOutline(fz_context* ctx, fz_outline* node, std::string& json, in
             if (c == '"') json += "\\\"";
             else json += c;
         }
-        json += "\",\"page\":" + std::to_string(node->page + 1);
+        int pageNum = fz_page_number_from_location(ctx, doc, node->page) + 1;
+        json += "\",\"page\":" + std::to_string(pageNum);
         if (node->down) {
             json += ",\"items\":[";
-            walkOutline(ctx, node->down, json, depth + 1);
+            walkOutline(ctx, doc, node->down, json, depth + 1);
             json += "]";
         }
         json += "}";
@@ -906,7 +908,7 @@ Java_com_pdfpowertools_native_MuPDFBridge_getPdfOutline(
         fz_document* doc = fz_open_document(ctx, in.c_str());
         fz_outline* root = fz_load_outline(ctx, doc);
         if (root) {
-            walkOutline(ctx, root, outlineJson, 0);
+            walkOutline(ctx, doc, root, outlineJson, 0);
             fz_drop_outline(ctx, root);
         }
         fz_drop_document(ctx, doc);

@@ -432,7 +432,7 @@ static int detectColumnCount(
 static bool isListItem(const std::string& t) {
     if (t.empty()) return false;
     // Starts with bullet, dash, number+dot, or numbered list
-    if (t[0] == '-' || t[0] == '*' || t[0] == '•' || t[0] == '·') return true;
+    if (t.starts_with("-") || t.starts_with("*") || t.starts_with("•") || t.starts_with("·")) return true;
     try {
         std::regex listPat(R"(^\s*(\d+[\.\)]\s|\([a-z]\)\s|[a-z][\.\)]\s))");
         if (std::regex_search(t, listPat)) return true;

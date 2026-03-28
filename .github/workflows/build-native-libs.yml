@@ -370,13 +370,14 @@ jobs:
           mkdir -p "$THIRD/paddle-lite/libs/x86_64"
           mkdir -p "$THIRD/paddle-lite/include"
 
-          echo "Downloading Paddle-Lite v2.12 Android arm64 prebuilt (official PaddlePaddle)..."
-          ARM64_URL="https://github.com/PaddlePaddle/Paddle-Lite/releases/download/v2.12/inference_lite_lib.android.armv8.clang.c%2B%2B_shared.tar.gz"
+          echo "Downloading Paddle-Lite v2.12 Android arm64-v8a prebuilt..."
+          # armv8 clang shared with_extra
+          ARM64_URL="https://github.com/PaddlePaddle/Paddle-Lite/releases/download/v2.12/inference_lite_lib.android.armv8.clang.c%2B%2B_shared.with_extra.tar.gz"
           if curl -fL -o /tmp/paddle-arm64.tar.gz "$ARM64_URL"; then
             mkdir -p /tmp/paddle-arm64
             tar -xzf /tmp/paddle-arm64.tar.gz -C /tmp/paddle-arm64 --strip-components=1
             ARM64_SO=$(find /tmp/paddle-arm64 -name 'libpaddle_light_api_shared.so' | head -1)
-            PADDLE_INC=$(find /tmp/paddle-arm64 -name 'paddle_api.h' -exec dirname {} \; | head -1)
+            PADDLE_INC=$(find /tmp/paddle-arm64 -name 'include' -type d | head -1)
             [[ -n "$ARM64_SO" ]] && cp "$ARM64_SO" "$THIRD/paddle-lite/libs/arm64-v8a/" && echo "✓ arm64 SO ready"
             [[ -n "$PADDLE_INC" ]] && cp -r "$PADDLE_INC/." "$THIRD/paddle-lite/include/" && echo "✓ headers copied"
             rm -rf /tmp/paddle-arm64 /tmp/paddle-arm64.tar.gz
@@ -384,17 +385,7 @@ jobs:
             echo "⚠ Paddle-Lite arm64 download failed — build continues without Paddle OCR"
           fi
 
-          echo "Downloading Paddle-Lite v2.12 Android x86_64 prebuilt..."
-          X86_URL="https://github.com/PaddlePaddle/Paddle-Lite/releases/download/v2.12/inference_lite_lib.android.intel_x86.clang.c%2B%2B_shared.tar.gz"
-          if curl -fL -o /tmp/paddle-x86.tar.gz "$X86_URL"; then
-            mkdir -p /tmp/paddle-x86
-            tar -xzf /tmp/paddle-x86.tar.gz -C /tmp/paddle-x86 --strip-components=1
-            X86_SO=$(find /tmp/paddle-x86 -name 'libpaddle_light_api_shared.so' | head -1)
-            [[ -n "$X86_SO" ]] && cp "$X86_SO" "$THIRD/paddle-lite/libs/x86_64/" && echo "✓ x86_64 SO ready"
-            rm -rf /tmp/paddle-x86 /tmp/paddle-x86.tar.gz
-          else
-            echo "⚠ Paddle-Lite x86_64 download failed — build continues without Paddle OCR (x86)"
-          fi
+          echo "Paddle-Lite Android x86_64: skipping (no official prebuilt in v2.12 release)"
           echo "✓ Paddle-Lite step complete."
 
       - name: Copy headers
@@ -425,11 +416,25 @@ jobs:
           cmake_minimum_required(VERSION 3.18)
           project(pdfpowertools_native)
           
-          add_library(pdfpowertools_native SHARED 
-              ../src/qpdf_bridge.cpp 
-              ../src/mupdf_bridge.cpp 
-              ../src/paddle_ocr_bridge.cpp
-          )
+          find_library(log-lib log)
+          find_library(android-lib android)
+          
+          set(SOURCE_FILES ../src/qpdf_bridge.cpp ../src/mupdf_bridge.cpp)
+          set(LINK_LIBS qpdf jpeg mupdf ${log-lib} ${android-lib})
+          set(HAS_PADDLE 0)
+          
+          if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/paddle-lite/libs/${CMAKE_ANDROID_ARCH_ABI}/libpaddle_light_api_shared.so")
+              message(STATUS "Paddle-Lite found for ${CMAKE_ANDROID_ARCH_ABI} - Enabling OCR")
+              list(APPEND SOURCE_FILES ../src/paddle_ocr_bridge.cpp)
+              add_library(paddle_lite SHARED IMPORTED)
+              set_target_properties(paddle_lite PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/paddle-lite/libs/${CMAKE_ANDROID_ARCH_ABI}/libpaddle_light_api_shared.so")
+              list(APPEND LINK_LIBS paddle_lite)
+              set(HAS_PADDLE 1)
+          else()
+              message(WARNING "Paddle-Lite NOT found for ${CMAKE_ANDROID_ARCH_ABI} - OCR will be disabled")
+          endif()
+          
+          add_library(pdfpowertools_native SHARED ${SOURCE_FILES})
           target_compile_features(pdfpowertools_native PRIVATE cxx_std_20)
           target_include_directories(pdfpowertools_native PRIVATE 
               ../src 
@@ -439,11 +444,8 @@ jobs:
           )
           
           target_compile_definitions(pdfpowertools_native PRIVATE 
-              HAS_QPDF=1 HAS_MUPDF=1 HAS_PADDLE=1 POINTERHOLDER_TRANSITION=0
+              HAS_QPDF=1 HAS_MUPDF=1 HAS_PADDLE=${HAS_PADDLE} POINTERHOLDER_TRANSITION=0
           )
-          
-          find_library(log-lib log)
-          find_library(android-lib android)
           
           add_library(qpdf SHARED IMPORTED)
           set_target_properties(qpdf PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/qpdf/libs/${CMAKE_ANDROID_ARCH_ABI}/libqpdf.so")
@@ -454,10 +456,7 @@ jobs:
           add_library(mupdf SHARED IMPORTED)
           set_target_properties(mupdf PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/mupdf/libs/${CMAKE_ANDROID_ARCH_ABI}/libmupdf.so")
           
-          add_library(paddle_lite SHARED IMPORTED)
-          set_target_properties(paddle_lite PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/paddle-lite/libs/${CMAKE_ANDROID_ARCH_ABI}/libpaddle_light_api_shared.so")
-          
-          target_link_libraries(pdfpowertools_native qpdf jpeg mupdf paddle_lite ${log-lib} ${android-lib})
+          target_link_libraries(pdfpowertools_native ${LINK_LIBS})
           EOF
           
           for ABI in arm64-v8a x86_64; do
